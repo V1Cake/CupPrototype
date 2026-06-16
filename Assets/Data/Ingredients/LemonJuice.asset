@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8083cada94dd2c439a2b1672fb6087f, type: 3}
+  m_Name: LemonJuice
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.DrinkSystem.IngredientData
+  ingredientName: LemonJuice
+  displayColor: {r: 1, g: 0.96159023, b: 0.46226406, a: 1}
+  sourness: 8
+  sweetness: 1
+  bitterness: 0
+  freshness: 7
+  body: 1
+  aroma: 4

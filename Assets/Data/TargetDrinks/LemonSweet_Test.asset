@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c1615ac817c10c498e7e37075c80ebf, type: 3}
+  m_Name: LemonSweet_Test
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.DrinkSystem.TargetDrinkData
+  drinkName: Lemon Sweet Test
+  targetVolume: 100
+  volumeTolerance: 10
+  targetFlavor:
+    sourness: 4
+    sweetness: 4.5
+    bitterness: 0
+    freshness: 4
+    body: 3.5
+    aroma: 3
+  flavorTolerance: 2
+  requiredIngredients:
+  - {fileID: 11400000, guid: b59588db75f91394193b06a16c550220, type: 2}
+  - {fileID: 11400000, guid: 77bf3eb5ac44bb342ace0435e29aea87, type: 2}
