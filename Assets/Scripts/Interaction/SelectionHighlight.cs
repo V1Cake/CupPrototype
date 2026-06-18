@@ -2,13 +2,17 @@ using UnityEngine;
 
 namespace CupPrototype.Interaction
 {
+    // ===== 选择高亮显示 =====
+    // 挂在材料瓶上，用放大的 OutlineVisual 子物体模拟外轮廓高亮。
     public class SelectionHighlight : MonoBehaviour
     {
+        // ===== Inspector 绑定参数 =====
         [SerializeField] private Renderer targetRenderer;
         [SerializeField] private GameObject outlineObject;
         [SerializeField] private Color outlineColor = Color.yellow;
         [SerializeField] private float outlineScale = 1.08f;
 
+        // ===== 生命周期：初始化外轮廓对象 =====
         private void Awake()
         {
             if (targetRenderer == null)
@@ -27,6 +31,7 @@ namespace CupPrototype.Interaction
             }
         }
 
+        // ===== 对外接口：开关高亮 =====
         public void SetHighlighted(bool highlighted)
         {
             if (outlineObject == null)
@@ -37,6 +42,7 @@ namespace CupPrototype.Interaction
             outlineObject.SetActive(highlighted);
         }
 
+        // ===== 自动创建伪外轮廓对象 =====
         private void CreateOutlineObject()
         {
             if (targetRenderer == null)
@@ -65,6 +71,8 @@ namespace CupPrototype.Interaction
             outlineRenderer.sharedMaterial = CreateOutlineMaterial();
         }
 
+        // ===== 创建外轮廓材质 =====
+        // 优先使用 URP/Lit，并尽量开启 emission，保证原型阶段容易看见。
         private Material CreateOutlineMaterial()
         {
             Shader shader = Shader.Find("Universal Render Pipeline/Lit");

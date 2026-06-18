@@ -3,13 +3,17 @@ using UnityEngine;
 
 namespace CupPrototype.DrinkSystem
 {
+    // ===== 目标饮品评分系统 =====
+    // 按风味、容量、关键材料三个维度给当前饮品打分。
     public static class DrinkScoreSystem
     {
+        // ===== 分值配置 =====
         private const float MaxFlavorScore = 60f;
         private const float MaxVolumeScore = 20f;
         private const float MaxIngredientScore = 20f;
         private const int FlavorDimensionCount = 6;
 
+        // ===== 对外入口：计算总评分 =====
         public static DrinkScoreResult ScoreDrink(DrinkContainer container, TargetDrinkData target)
         {
             DrinkScoreResult result = new DrinkScoreResult();
@@ -29,6 +33,8 @@ namespace CupPrototype.DrinkSystem
             return result;
         }
 
+        // ===== 风味评分 =====
+        // 六个风味维度分别比较目标值，差距越大扣分越多。
         private static float CalculateFlavorScore(FlavorProfile current, TargetDrinkData target)
         {
             float tolerance = Mathf.Max(0.01f, target.flavorTolerance);
@@ -45,6 +51,7 @@ namespace CupPrototype.DrinkSystem
             return Mathf.Clamp(score, 0f, MaxFlavorScore);
         }
 
+        // ===== 单个风味维度扣分 =====
         private static float GetFlavorPenalty(float difference, float tolerance, float maxPenalty)
         {
             if (difference <= tolerance)
@@ -55,6 +62,7 @@ namespace CupPrototype.DrinkSystem
             return Mathf.Clamp((difference - tolerance) / tolerance * maxPenalty, 0f, maxPenalty);
         }
 
+        // ===== 容量评分 =====
         private static float CalculateVolumeScore(float currentVolume, TargetDrinkData target)
         {
             float tolerance = Mathf.Max(0.01f, target.volumeTolerance);
@@ -69,6 +77,8 @@ namespace CupPrototype.DrinkSystem
             return Mathf.Clamp(score, 0f, MaxVolumeScore);
         }
 
+        // ===== 关键材料评分 =====
+        // 目前只检查是否包含，不检查材料比例。
         private static float CalculateIngredientScore(DrinkContainer container, TargetDrinkData target, List<string> missingRequiredIngredients)
         {
             if (target.requiredIngredients == null || target.requiredIngredients.Count == 0)
@@ -104,6 +114,7 @@ namespace CupPrototype.DrinkSystem
             return Mathf.Clamp(MaxIngredientScore * matchedRatio, 0f, MaxIngredientScore);
         }
 
+        // ===== 评分反馈文本 =====
         private static string GenerateFeedback(DrinkContainer container, TargetDrinkData target, DrinkScoreResult result)
         {
             List<string> feedbackParts = new List<string>();
@@ -152,6 +163,7 @@ namespace CupPrototype.DrinkSystem
             return string.Join(" ", feedbackParts);
         }
 
+        // ===== 材料名兜底 =====
         private static string GetIngredientName(IngredientData ingredient)
         {
             if (!string.IsNullOrWhiteSpace(ingredient.ingredientName))

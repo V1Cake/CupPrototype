@@ -3,8 +3,30 @@ using UnityEngine;
 
 namespace CupPrototype.DrinkSystem
 {
+    // ===== 饮品容器核心逻辑 =====
+    // 只负责容量、颜色、材料记录和风味计算；液体显示交给 LiquidVisualController。
     public class DrinkContainer : MonoBehaviour
     {
+        // ===== 容器类型 =====
+        // 后续用于区分成品杯、量杯、摇杯、调酒杯等不同工作流。
+        public enum ContainerType
+        {
+            FinalGlass,
+            MeasureCup,
+            Shaker,
+            MixingGlass
+        }
+
+        // ===== 混合状态 =====
+        // Shaker 使用该状态标记是否已经摇匀；当前阶段不参与评分，只用于调试和后续玩法扩展。
+        public enum MixState
+        {
+            Unmixed,
+            PartiallyMixed,
+            Mixed
+        }
+
+        // ===== 单个材料加入记录 =====
         [System.Serializable]
         public class IngredientEntry
         {
@@ -12,47 +34,87 @@ namespace CupPrototype.DrinkSystem
             public float amount;
         }
 
+        // ===== 容器身份信息 =====
+        // containerName 显示在 Debug UI 和 Console 中；留空时 Awake 会使用 GameObject 名称。
+        public string containerName = "Container";
+        // containerType 用于区分最终杯、量杯、摇杯等，评分默认优先选择 FinalGlass。
+        public ContainerType containerType = ContainerType.FinalGlass;
+        // mixState 表示当前容器内容的混合状态；主要给 ShakerController 和 C 键调试使用。
+        public MixState mixState = MixState.Unmixed;
+
+        // ===== 容量与颜色状态 =====
         [SerializeField] private float maxVolume = 100f;
         [SerializeField] private float currentVolume;
         [SerializeField] private Color currentColor = Color.clear;
-        [SerializeField] private Transform liquidVisual;
-        [SerializeField] private Renderer liquidRenderer;
-        [SerializeField] private float liquidMinHeight = 0.02f;
-        [SerializeField] private float liquidBottomOffset = 0.1f;
-        [SerializeField] private float liquidMaxScaleY = 0.75f;
+
+        // ===== 材料记录 =====
         [SerializeField] private List<IngredientEntry> ingredients = new List<IngredientEntry>();
 
-        private float liquidBottomLocalY;
-        private Vector3 liquidInitialLocalScale = Vector3.one;
-        private Vector3 liquidInitialLocalPosition;
+        // ===== 液体视觉控制器 =====
+        // 可以手动指定；为空时会从子物体中自动查找。
+        public LiquidVisualController liquidVisualController;
 
+        // ===== 转移日志节流 =====
+        private const float TransferLogStep = 10f;
+        private float pendingTransferLogAmount;
+
+        // ===== 对外只读访问 =====
         public float MaxVolume => maxVolume;
         public float CurrentVolume => currentVolume;
         public Color CurrentColor => currentColor;
         public IReadOnlyList<IngredientEntry> Ingredients => ingredients;
+        public string DisplayName => string.IsNullOrWhiteSpace(containerName) ? gameObject.name : containerName;
 
+        // ===== 生命周期：绑定液体视觉 =====
         private void Awake()
         {
-            if (liquidVisual != null)
+            if (string.IsNullOrWhiteSpace(containerName) || containerName == "Container")
             {
-                liquidInitialLocalScale = liquidVisual.localScale;
-                liquidInitialLocalPosition = liquidVisual.localPosition;
-                liquidBottomLocalY = liquidInitialLocalPosition.y - liquidInitialLocalScale.y + liquidBottomOffset;
+                containerName = gameObject.name;
+            }
 
-                if (liquidRenderer == null)
-                {
-                    liquidRenderer = liquidVisual.GetComponent<Renderer>();
-                }
+            if (liquidVisualController == null)
+            {
+                liquidVisualController = GetComponentInChildren<LiquidVisualController>(true);
+            }
 
-                UpdateLiquidVisual();
+            if (liquidVisualController != null)
+            {
+                Debug.Log($"[DrinkContainer] LiquidVisualController linked on {gameObject.name}", this);
+                liquidVisualController.Initialize();
+                liquidVisualController.UpdateVisual(currentVolume, maxVolume, currentColor);
+            }
+            else
+            {
+                Debug.LogWarning($"[DrinkContainer] LiquidVisualController not found on {gameObject.name}", this);
             }
         }
 
+        // ===== 容量判断 =====
         public bool CanAdd(float amount)
         {
             return amount > 0f && currentVolume < maxVolume;
         }
 
+        // ===== 剩余容量查询 =====
+        public float GetRemainingVolume()
+        {
+            return Mathf.Max(0f, maxVolume - currentVolume);
+        }
+
+        // ===== 空/满状态查询 =====
+        public bool IsEmpty()
+        {
+            return currentVolume <= 0.001f;
+        }
+
+        public bool IsFull()
+        {
+            return GetRemainingVolume() <= 0.001f;
+        }
+
+        // ===== 加入材料 =====
+        // 处理容量上限、颜色混合、材料记录，并通知液体视觉更新。
         public void AddIngredient(IngredientData ingredient, float amount, bool logResult = true)
         {
             if (ingredient == null)
@@ -69,37 +131,108 @@ namespace CupPrototype.DrinkSystem
             {
                 if (logResult)
                 {
-                    Debug.Log($"Cup is full. Cannot add {ingredient.ingredientName}. Volume: {currentVolume:0.##}/{maxVolume:0.##}", this);
+                    Debug.Log($"{DisplayName} is full. Cannot add {ingredient.ingredientName}. Volume: {currentVolume:0.##}/{maxVolume:0.##}", this);
                 }
 
                 return;
             }
 
             float addAmount = Mathf.Min(amount, maxVolume - currentVolume);
-            float previousVolume = currentVolume;
-            currentVolume += addAmount;
-
-            currentColor = previousVolume <= 0f
-                ? ingredient.displayColor
-                : Color.Lerp(currentColor, ingredient.displayColor, addAmount / currentVolume);
-
-            AddOrUpdateIngredientEntry(ingredient, addAmount);
-            UpdateLiquidVisual();
-
-            if (logResult)
-            {
-                Debug.Log($"Added ingredient: {ingredient.ingredientName}, Amount: {addAmount:0.##}, Volume: {currentVolume:0.##}/{maxVolume:0.##}, Color: R={currentColor.r:0.00}, G={currentColor.g:0.00}, B={currentColor.b:0.00}, A={currentColor.a:0.00}", this);
-            }
+            AddIngredientInternal(ingredient, addAmount, logResult);
         }
 
+        // ===== 容器内容转移 =====
+        // 按源容器现有材料比例，把指定数量转移到目标容器。
+        public bool TransferTo(DrinkContainer target, float amount)
+        {
+            if (target == null || target == this || IsEmpty() || target.IsFull() || amount <= 0f)
+            {
+                return false;
+            }
+
+            float sourceVolumeBefore = currentVolume;
+            float actualAmount = Mathf.Min(amount, currentVolume, target.GetRemainingVolume());
+            if (actualAmount <= 0f)
+            {
+                return false;
+            }
+
+            List<IngredientEntry> transferEntries = new List<IngredientEntry>();
+            // 先复制出本次要转移的材料明细，避免遍历 ingredients 时直接修改同一个集合。
+            foreach (IngredientEntry entry in ingredients)
+            {
+                if (entry.ingredient == null || entry.amount <= 0f)
+                {
+                    continue;
+                }
+
+                float transferAmount = actualAmount * (entry.amount / sourceVolumeBefore);
+                if (transferAmount > 0f)
+                {
+                    transferEntries.Add(new IngredientEntry
+                    {
+                        ingredient = entry.ingredient,
+                        amount = transferAmount
+                    });
+                }
+            }
+
+            // 按比例把材料记录转移到目标容器，再从源容器扣除对应数量。
+            foreach (IngredientEntry transferEntry in transferEntries)
+            {
+                target.AddIngredientInternal(transferEntry.ingredient, transferEntry.amount, false);
+                SubtractIngredientAmount(transferEntry.ingredient, transferEntry.amount);
+            }
+
+            // 目标是摇杯时，新进入的内容默认视为尚未摇匀。
+            if (target.containerType == ContainerType.Shaker)
+            {
+                target.mixState = MixState.Unmixed;
+                ShakerController targetShakerController = target.GetComponent<ShakerController>();
+                if (targetShakerController != null)
+                {
+                    targetShakerController.ResetShake();
+                }
+            }
+
+            RemoveEmptyIngredientEntries();
+            RecalculateFromIngredients();
+            UpdateLiquidVisual();
+
+            pendingTransferLogAmount += actualAmount;
+            if (pendingTransferLogAmount >= TransferLogStep || IsEmpty())
+            {
+                Debug.Log($"[DrinkContainer] Transfer {pendingTransferLogAmount:0.##} from {DisplayName} to {target.DisplayName}", this);
+                Debug.Log($"[DrinkContainer] Source {DisplayName} ingredients: {GetIngredientDebugString()}", this);
+                Debug.Log($"[DrinkContainer] Target {target.DisplayName} ingredients: {target.GetIngredientDebugString()}", target);
+                pendingTransferLogAmount = 0f;
+            }
+
+            return true;
+        }
+
+        // ===== 清空杯子 =====
+        // 只清空 DrinkContainer 自身数据，并通知视觉控制器隐藏液体。
         public void Clear()
         {
             currentVolume = 0f;
             currentColor = Color.clear;
+            mixState = MixState.Unmixed;
             ingredients.Clear();
-            UpdateLiquidVisual();
+            if (liquidVisualController != null)
+            {
+                liquidVisualController.ClearVisual();
+            }
+
+            ShakerController shakerController = GetComponent<ShakerController>();
+            if (shakerController != null)
+            {
+                shakerController.ResetShake();
+            }
         }
 
+        // ===== 当前综合风味 =====
+        // 根据所有已加入材料和数量计算加权平均风味。
         public FlavorProfile GetCurrentFlavorProfile()
         {
             if (currentVolume <= 0f)
@@ -125,6 +258,8 @@ namespace CupPrototype.DrinkSystem
             return profile;
         }
 
+        // ===== 材料查询 =====
+        // 评分系统用它检查关键材料是否出现过。
         public bool ContainsIngredient(IngredientData ingredient)
         {
             if (ingredient == null)
@@ -143,48 +278,104 @@ namespace CupPrototype.DrinkSystem
             return false;
         }
 
+        // ===== 材料记录只读访问 =====
         public IReadOnlyList<IngredientEntry> GetIngredientEntries()
         {
             return ingredients;
         }
 
+        // ===== 材料记录调试字符串 =====
+        // Console 调试和评分检查时使用，用来确认容器里到底有哪些 IngredientData。
+        public string GetIngredientDebugString()
+        {
+            if (ingredients.Count == 0)
+            {
+                return "Empty";
+            }
+
+            List<string> parts = new List<string>();
+            foreach (IngredientEntry entry in ingredients)
+            {
+                if (entry.ingredient == null || entry.amount <= 0.001f)
+                {
+                    continue;
+                }
+
+                string ingredientName = !string.IsNullOrWhiteSpace(entry.ingredient.ingredientName)
+                    ? entry.ingredient.ingredientName
+                    : entry.ingredient.name;
+
+                parts.Add($"{ingredientName}: {entry.amount:0.0}");
+            }
+
+            return parts.Count > 0 ? string.Join(", ", parts) : "Empty";
+        }
+
+        // ===== 风味调试字符串 =====
+        // Console 调试时使用，把当前加权风味压缩成一行，方便和目标饮品对照。
+        public string GetFlavorDebugString()
+        {
+            FlavorProfile profile = GetCurrentFlavorProfile();
+            return $"Sour={profile.sourness:0.0}, Sweet={profile.sweetness:0.0}, Bitter={profile.bitterness:0.0}, Fresh={profile.freshness:0.0}, Body={profile.body:0.0}, Aroma={profile.aroma:0.0}";
+        }
+
+        // ===== 容器完整调试摘要 =====
+        // C 键批量检查所有容器时使用，集中输出身份、容量、材料、风味和颜色。
+        public string GetDebugSummary()
+        {
+            string debugName = string.IsNullOrWhiteSpace(containerName) ? gameObject.name : containerName;
+            string shakerInfo = TryGetComponent(out ShakerController shakerController)
+                ? $", ShakeLevel={shakerController.ShakeLevel:0.0}/{shakerController.ShakeRequired:0.0}"
+                : string.Empty;
+
+            return $"[{debugName}] Type={containerType}, MixState={mixState}{shakerInfo}, Volume={currentVolume:0.0}/{maxVolume:0.0}, Ingredients={{{GetIngredientDebugString()}}}, Flavor={{{GetFlavorDebugString()}}}, Color=RGBA({currentColor.r:0.00},{currentColor.g:0.00},{currentColor.b:0.00},{currentColor.a:0.00})";
+        }
+
+        // ===== 内部工具：不经过容量判断的加料入口 =====
+        // 公开 AddIngredient 负责容量裁剪；TransferTo 已经提前计算好可转移量。
+        private void AddIngredientInternal(IngredientData ingredient, float amount, bool log)
+        {
+            if (ingredient == null || amount <= 0f)
+            {
+                return;
+            }
+
+            AddOrUpdateIngredientEntry(ingredient, amount);
+            if (containerType == ContainerType.Shaker)
+            {
+                mixState = MixState.Unmixed;
+                ShakerController shakerController = GetComponent<ShakerController>();
+                if (shakerController != null)
+                {
+                    shakerController.ResetShake();
+                }
+            }
+
+            RecalculateFromIngredients();
+            UpdateLiquidVisual();
+
+            if (log)
+            {
+                Debug.Log($"Added ingredient to {DisplayName}: {ingredient.ingredientName}, Amount: {amount:0.##}, Volume: {currentVolume:0.##}/{maxVolume:0.##}, Color: R={currentColor.r:0.00}, G={currentColor.g:0.00}, B={currentColor.b:0.00}, A={currentColor.a:0.00}", this);
+                Debug.Log($"[DrinkContainer] {DisplayName} ingredients: {GetIngredientDebugString()}", this);
+            }
+        }
+
+        // ===== 内部工具：刷新液体视觉 =====
         private void UpdateLiquidVisual()
         {
-            if (liquidVisual == null)
+            if (liquidVisualController != null)
             {
-                return;
+                Debug.Log($"[DrinkContainer] Updating liquid visual. Volume={currentVolume}/{maxVolume}, Color={currentColor}", this);
+                liquidVisualController.UpdateVisual(currentVolume, maxVolume, currentColor);
             }
-
-            if (maxVolume <= 0f || currentVolume <= 0f)
+            else
             {
-                liquidVisual.gameObject.SetActive(false);
-                SetLiquidHeight(liquidMinHeight);
-                return;
-            }
-
-            liquidVisual.gameObject.SetActive(true);
-
-            float volumeRatio = Mathf.Clamp01(currentVolume / maxVolume);
-            float height = Mathf.Lerp(liquidMinHeight, liquidMaxScaleY, volumeRatio);
-            SetLiquidHeight(height);
-
-            if (liquidRenderer != null)
-            {
-                liquidRenderer.material.color = currentColor;
+                Debug.LogWarning($"[DrinkContainer] LiquidVisualController not found on {gameObject.name}", this);
             }
         }
 
-        private void SetLiquidHeight(float height)
-        {
-            Vector3 scale = liquidInitialLocalScale;
-            scale.y = height;
-            liquidVisual.localScale = scale;
-
-            Vector3 position = liquidInitialLocalPosition;
-            position.y = liquidBottomLocalY + height;
-            liquidVisual.localPosition = position;
-        }
-
+        // ===== 内部工具：新增或累计材料记录 =====
         private void AddOrUpdateIngredientEntry(IngredientData ingredient, float amount)
         {
             foreach (IngredientEntry entry in ingredients)
@@ -201,6 +392,52 @@ namespace CupPrototype.DrinkSystem
                 ingredient = ingredient,
                 amount = amount
             });
+        }
+
+        // ===== 内部工具：从源容器扣除材料数量 =====
+        private void SubtractIngredientAmount(IngredientData ingredient, float amount)
+        {
+            for (int i = 0; i < ingredients.Count; i++)
+            {
+                if (ingredients[i].ingredient == ingredient)
+                {
+                    ingredients[i].amount -= amount;
+                    return;
+                }
+            }
+        }
+
+        // ===== 内部工具：移除接近 0 的材料记录 =====
+        private void RemoveEmptyIngredientEntries()
+        {
+            for (int i = ingredients.Count - 1; i >= 0; i--)
+            {
+                if (ingredients[i].ingredient == null || ingredients[i].amount <= 0.001f)
+                {
+                    ingredients.RemoveAt(i);
+                }
+            }
+        }
+
+        // ===== 内部工具：根据材料记录重算容量和颜色 =====
+        private void RecalculateFromIngredients()
+        {
+            currentVolume = 0f;
+            currentColor = Color.clear;
+
+            foreach (IngredientEntry entry in ingredients)
+            {
+                if (entry.ingredient == null || entry.amount <= 0f)
+                {
+                    continue;
+                }
+
+                float previousVolume = currentVolume;
+                currentVolume += entry.amount;
+                currentColor = previousVolume <= 0f
+                    ? entry.ingredient.displayColor
+                    : Color.Lerp(currentColor, entry.ingredient.displayColor, entry.amount / currentVolume);
+            }
         }
     }
 }
