@@ -12,7 +12,7 @@ namespace CupPrototype.DrinkSystem
         public enum ContainerType
         {
             FinalGlass,
-            MeasureCup,
+            Jigger,
             Shaker,
             MixingGlass
         }
@@ -127,6 +127,16 @@ namespace CupPrototype.DrinkSystem
                 return;
             }
 
+            if (!CanAcceptIngredient(ingredient))
+            {
+                if (logResult)
+                {
+                    Debug.Log("[DrinkContainer] Jigger can only hold one ingredient at a time.", this);
+                }
+
+                return;
+            }
+
             if (!CanAdd(amount))
             {
                 if (logResult)
@@ -152,6 +162,7 @@ namespace CupPrototype.DrinkSystem
 
             float sourceVolumeBefore = currentVolume;
             float actualAmount = Mathf.Min(amount, currentVolume, target.GetRemainingVolume());
+            MixState sourceMixState = mixState;
             if (actualAmount <= 0f)
             {
                 return false;
@@ -177,6 +188,21 @@ namespace CupPrototype.DrinkSystem
                 }
             }
 
+            if (transferEntries.Count == 0)
+            {
+                return false;
+            }
+
+            // Jigger 是控量工具，不是混合容器；目标为 Jigger 时，只允许转入一种材料，
+            // 且该材料必须和 Jigger 当前已有材料一致，或 Jigger 为空。
+            if (target.containerType == ContainerType.Jigger &&
+                (!TryGetSingleIngredient(transferEntries, out IngredientData singleTransferIngredient) ||
+                !target.CanAcceptIngredient(singleTransferIngredient)))
+            {
+                Debug.Log("[DrinkContainer] Cannot transfer mixed or different ingredient content into Jigger.", target);
+                return false;
+            }
+
             // 按比例把材料记录转移到目标容器，再从源容器扣除对应数量。
             foreach (IngredientEntry transferEntry in transferEntries)
             {
@@ -194,9 +220,28 @@ namespace CupPrototype.DrinkSystem
                     targetShakerController.ResetShake();
                 }
             }
+            else
+            {
+                // Shaker 转移到 Cup/Jigger 时保留“是否摇匀”的工艺状态，方便后续调试；
+                // 当前 MixState 只做流程标记，不参与 DrinkScoreSystem 评分。
+                target.mixState = sourceMixState;
+            }
 
             RemoveEmptyIngredientEntries();
             RecalculateFromIngredients();
+            if (containerType == ContainerType.Shaker && IsEmpty())
+            {
+                ShakerController sourceShakerController = GetComponent<ShakerController>();
+                if (sourceShakerController != null)
+                {
+                    sourceShakerController.ResetShake();
+                }
+                else
+                {
+                    mixState = MixState.Unmixed;
+                }
+            }
+
             UpdateLiquidVisual();
 
             pendingTransferLogAmount += actualAmount;
@@ -256,6 +301,49 @@ namespace CupPrototype.DrinkSystem
 
             profile.Divide(totalAmount);
             return profile;
+        }
+
+        // ===== Jigger 材料接收判断 =====
+        // Jigger 是控量工具，不是混合容器：空的时候可接收任意一种材料；
+        // 非空时只能继续接收同一种 IngredientData，不能混入其他材料。
+        public bool CanAcceptIngredient(IngredientData ingredient)
+        {
+            if (ingredient == null)
+            {
+                return false;
+            }
+
+            if (containerType != ContainerType.Jigger)
+            {
+                return true;
+            }
+
+            if (currentVolume <= 0.001f || ingredients.Count == 0)
+            {
+                return true;
+            }
+
+            IngredientData existingIngredient = null;
+            foreach (IngredientEntry entry in ingredients)
+            {
+                if (entry.ingredient == null || entry.amount <= 0.001f)
+                {
+                    continue;
+                }
+
+                if (existingIngredient == null)
+                {
+                    existingIngredient = entry.ingredient;
+                    continue;
+                }
+
+                if (existingIngredient != entry.ingredient)
+                {
+                    return false;
+                }
+            }
+
+            return existingIngredient == null || existingIngredient == ingredient;
         }
 
         // ===== 材料查询 =====
@@ -325,10 +413,10 @@ namespace CupPrototype.DrinkSystem
         {
             string debugName = string.IsNullOrWhiteSpace(containerName) ? gameObject.name : containerName;
             string shakerInfo = TryGetComponent(out ShakerController shakerController)
-                ? $", ShakeLevel={shakerController.ShakeLevel:0.0}/{shakerController.ShakeRequired:0.0}"
+                ? $", {shakerController.GetShakeDebugString()}"
                 : string.Empty;
 
-            return $"[{debugName}] Type={containerType}, MixState={mixState}{shakerInfo}, Volume={currentVolume:0.0}/{maxVolume:0.0}, Ingredients={{{GetIngredientDebugString()}}}, Flavor={{{GetFlavorDebugString()}}}, Color=RGBA({currentColor.r:0.00},{currentColor.g:0.00},{currentColor.b:0.00},{currentColor.a:0.00})";
+            return $"[{debugName}] Type={containerType}, Volume={currentVolume:0.0}/{maxVolume:0.0}, MixState={mixState}{shakerInfo}, Ingredients={{{GetIngredientDebugString()}}}, Flavor={{{GetFlavorDebugString()}}}, Color=RGBA({currentColor.r:0.00},{currentColor.g:0.00},{currentColor.b:0.00},{currentColor.a:0.00})";
         }
 
         // ===== 内部工具：不经过容量判断的加料入口 =====
@@ -337,6 +425,16 @@ namespace CupPrototype.DrinkSystem
         {
             if (ingredient == null || amount <= 0f)
             {
+                return;
+            }
+
+            if (!CanAcceptIngredient(ingredient))
+            {
+                if (log)
+                {
+                    Debug.Log("[DrinkContainer] Jigger can only hold one ingredient at a time.", this);
+                }
+
                 return;
             }
 
@@ -392,6 +490,34 @@ namespace CupPrototype.DrinkSystem
                 ingredient = ingredient,
                 amount = amount
             });
+        }
+
+        // ===== 内部工具：判断一组材料记录是否只包含一种材料 =====
+        // Jigger 接收容器转入时使用，防止把混合液倒进控量杯。
+        private static bool TryGetSingleIngredient(List<IngredientEntry> entries, out IngredientData ingredient)
+        {
+            ingredient = null;
+
+            foreach (IngredientEntry entry in entries)
+            {
+                if (entry.ingredient == null || entry.amount <= 0.001f)
+                {
+                    continue;
+                }
+
+                if (ingredient == null)
+                {
+                    ingredient = entry.ingredient;
+                    continue;
+                }
+
+                if (ingredient != entry.ingredient)
+                {
+                    return false;
+                }
+            }
+
+            return ingredient != null;
         }
 
         // ===== 内部工具：从源容器扣除材料数量 =====

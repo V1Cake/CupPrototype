@@ -28,6 +28,8 @@ namespace CupPrototype.DrinkSystem
             result.volumeScore = CalculateVolumeScore(container.CurrentVolume, target);
             result.ingredientScore = CalculateIngredientScore(container, target, result.missingRequiredIngredients);
             result.totalScore = result.flavorScore + result.volumeScore + result.ingredientScore;
+            // 工艺要求当前只用于提示，不参与评分，也不改变 totalScore。
+            EvaluatePreparationRequirement(container, target, result);
             result.feedbackText = GenerateFeedback(container, target, result);
 
             return result;
@@ -112,6 +114,36 @@ namespace CupPrototype.DrinkSystem
 
             float matchedRatio = (requiredCount - missingCount) / (float)requiredCount;
             return Mathf.Clamp(MaxIngredientScore * matchedRatio, 0f, MaxIngredientScore);
+        }
+
+        // ===== 制作方式检查 =====
+        // 这里只生成提示字段，不影响风味分、容量分、材料分和总分。
+        private static void EvaluatePreparationRequirement(DrinkContainer container, TargetDrinkData target, DrinkScoreResult result)
+        {
+            switch (target.requiredPreparation)
+            {
+                case TargetDrinkData.PreparationMethod.None:
+                    result.preparationMatched = true;
+                    result.preparationFeedback = "No preparation requirement.";
+                    break;
+
+                case TargetDrinkData.PreparationMethod.Built:
+                    result.preparationMatched = container.containerType == DrinkContainer.ContainerType.FinalGlass;
+                    result.preparationFeedback = "Built drink. No shaker required.";
+                    break;
+
+                case TargetDrinkData.PreparationMethod.Shaken:
+                    result.preparationMatched = container.mixState == DrinkContainer.MixState.Mixed;
+                    result.preparationFeedback = result.preparationMatched
+                        ? "Shaken requirement met."
+                        : "This drink should be shaken until Mixed.";
+                    break;
+
+                case TargetDrinkData.PreparationMethod.Stirred:
+                    result.preparationMatched = false;
+                    result.preparationFeedback = "Stirred preparation is reserved for future MixingGlass system.";
+                    break;
+            }
         }
 
         // ===== 评分反馈文本 =====

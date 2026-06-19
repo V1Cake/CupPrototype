@@ -10,11 +10,11 @@ namespace CupPrototype.DrinkSystem
         // ===== Inspector 绑定参数 =====
         // container 指向同物体上的 DrinkContainer；为空时 Awake 会自动获取。
         public DrinkContainer container;
-        // shakeLevel 是当前摇晃进度，按 C 调试时会显示。
+        // shakeLevel 是当前摇晃进度；可在 Inspector 中观察，也会通过 C 键调试输出显示。
         public float shakeLevel = 0f;
-        // shakeRequired 是达到 Mixed 状态所需的摇晃进度。
+        // shakeRequired 是达到 Mixed 状态所需的摇晃进度；数值越高，需要拖动摇晃越久。
         public float shakeRequired = 100f;
-        // shakeGainMultiplier 控制拖动距离转化为摇晃进度的倍率，越大越容易摇匀。
+        // shakeGainMultiplier 控制拖动距离转化为摇晃进度的倍率；数值越大，越容易摇匀。
         public float shakeGainMultiplier = 15f;
         // minMoveDistance 用于过滤非常小的抖动，避免静止时误增加 ShakeLevel。
         public float minMoveDistance = 0.02f;
@@ -48,6 +48,12 @@ namespace CupPrototype.DrinkSystem
                 return;
             }
 
+            if (container.containerType != DrinkContainer.ContainerType.Shaker)
+            {
+                lastPosition = transform.position;
+                return;
+            }
+
             if (container.CurrentVolume <= 0f)
             {
                 ResetShake();
@@ -62,8 +68,10 @@ namespace CupPrototype.DrinkSystem
             }
 
             // ===== 摇晃距离计算 =====
-            // DragController 已经锁定 Y，因此这里直接用世界坐标距离即可，主要来自 X/Z 平面移动。
-            float distance = Vector3.Distance(transform.position, lastPosition);
+            // 只统计 X/Z 平面位移，避免未来模型动画、Y 轴校准或拖拽高度锁定影响摇晃判断。
+            Vector2 currentXZ = new Vector2(transform.position.x, transform.position.z);
+            Vector2 lastXZ = new Vector2(lastPosition.x, lastPosition.z);
+            float distance = Vector2.Distance(currentXZ, lastXZ);
             if (distance > minMoveDistance)
             {
                 shakeLevel += distance * shakeGainMultiplier;
@@ -88,7 +96,7 @@ namespace CupPrototype.DrinkSystem
         }
 
         // ===== 重置摇晃进度 =====
-        // DrinkContainer.Clear 或容器变空时调用，让摇杯回到未混合状态。
+        // DrinkContainer.Clear、容器变空、或新材料进入 Shaker 时调用，让摇杯回到未混合状态。
         public void ResetShake()
         {
             shakeLevel = 0f;
@@ -98,6 +106,13 @@ namespace CupPrototype.DrinkSystem
             {
                 container.mixState = DrinkContainer.MixState.Unmixed;
             }
+        }
+
+        // ===== 摇晃调试字符串 =====
+        // DrinkContainer.GetDebugSummary 调用，用一行文本显示当前摇晃进度。
+        public string GetShakeDebugString()
+        {
+            return $"ShakeLevel={shakeLevel:0.0}/{shakeRequired:0.0}";
         }
 
         // ===== 混合状态更新 =====

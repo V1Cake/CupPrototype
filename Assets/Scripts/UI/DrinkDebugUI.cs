@@ -98,6 +98,7 @@ namespace CupPrototype.UI
                 $"Volume: {result.volumeScore:0.0}/20\n" +
                 $"Ingredient: {result.ingredientScore:0.0}/20\n" +
                 $"Missing: {missingIngredients}\n" +
+                $"Prep: {result.preparationFeedback}\n" +
                 $"Feedback: {result.feedbackText}";
         }
 

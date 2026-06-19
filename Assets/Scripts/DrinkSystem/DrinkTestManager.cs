@@ -30,7 +30,14 @@ namespace CupPrototype.DrinkSystem
         [SerializeField] private DrinkDebugUI debugUI;
         // scoringContainer 用于在多容器场景中明确指定按 F 评分的最终杯。
         public DrinkContainer scoringContainer;
-        // containerTransferRatePerSecond 控制量杯向其他容器转移时的每秒转移量。
+        // defaultTransferRatePerSecond 是普通容器之间的持续转移速度。
+        public float defaultTransferRatePerSecond = 30f;
+        // jiggerTransferRatePerSecond 是 Jigger 作为源容器时的快速转移速度。
+        public float jiggerTransferRatePerSecond = 300f;
+        // instantJiggerTransfer 勾选后，Jigger 会在点击目标容器时一次性完成转移。
+        public bool instantJiggerTransfer = false;
+        // 旧字段保留给已有场景数据兼容；内部逻辑优先使用 defaultTransferRatePerSecond。
+        [HideInInspector]
         public float containerTransferRatePerSecond = 30f;
 
         // ===== 当前选择与倒入状态 =====
@@ -103,6 +110,10 @@ namespace CupPrototype.DrinkSystem
         }
 
         // ===== 鼠标输入处理 =====
+        // 输入优先级：
+        // 1. 有材料选中时，按住任何 DrinkContainer 都用于倒入材料；
+        // 2. 没有材料选中但有转移源时，按住另一个 DrinkContainer 用于容器转移；
+        // 3. 两者都没有时，本脚本不处理拖拽，让 DragController 正常移动物体，ShakerController 再根据移动距离累计摇晃。
         private void HandleMouseInput()
         {
             if (Input.GetMouseButtonDown(0))
@@ -113,6 +124,7 @@ namespace CupPrototype.DrinkSystem
 
             if (Input.GetMouseButton(0))
             {
+                // 材料倒入优先于容器转移，避免选中材料时误把 Shaker/Jigger 当作转移源。
                 if (currentSelectedIngredient != null)
                 {
                     ContinueIngredientPour();
@@ -162,6 +174,16 @@ namespace CupPrototype.DrinkSystem
 
             if (drinkContainer != null)
             {
+                // Jigger 瞬间转移：源容器是 Jigger 且开关打开时，点击目标容器就一次性转移。
+                if (currentSelectedIngredient == null &&
+                    selectedSourceContainer != null &&
+                    drinkContainer != selectedSourceContainer &&
+                    ShouldInstantTransferFromJigger())
+                {
+                    TransferSelectedSourceToTarget(drinkContainer, selectedSourceContainer.CurrentVolume);
+                    return;
+                }
+
                 if (selectedIngredient == null)
                 {
                     return;
@@ -298,7 +320,7 @@ namespace CupPrototype.DrinkSystem
 
             if (selectedSourceContainer.IsEmpty())
             {
-                ClearSelectedSourceContainer();
+                ClearEmptiedTransferSource();
                 return;
             }
 
@@ -320,19 +342,7 @@ namespace CupPrototype.DrinkSystem
                 StartContainerTransfer(targetContainer);
             }
 
-            bool transferred = selectedSourceContainer.TransferTo(
-                targetContainer,
-                containerTransferRatePerSecond * Time.deltaTime);
-
-            if (transferred && debugUI != null)
-            {
-                debugUI.SetVolume(targetContainer.DisplayName, targetContainer.CurrentVolume, targetContainer.MaxVolume);
-            }
-
-            if (selectedSourceContainer == null || selectedSourceContainer.IsEmpty())
-            {
-                ClearSelectedSourceContainer();
-            }
+            TransferSelectedSourceToTarget(targetContainer, GetCurrentTransferRatePerSecond() * Time.deltaTime);
         }
 
         // ===== 鼠标射线工具 =====
@@ -391,6 +401,62 @@ namespace CupPrototype.DrinkSystem
             currentTransferTargetContainer = targetContainer;
             isTransferringContainer = true;
             SetInputMode(InputMode.TransferringContainer);
+        }
+
+        // ===== 容器转移执行入口 =====
+        // 持续转移和 Jigger 瞬间转移共用这里，统一处理 UI 更新和源容器变空后的清理。
+        private void TransferSelectedSourceToTarget(DrinkContainer targetContainer, float amount)
+        {
+            if (selectedSourceContainer == null ||
+                targetContainer == null ||
+                targetContainer == selectedSourceContainer)
+            {
+                return;
+            }
+
+            if (selectedSourceContainer.IsEmpty())
+            {
+                ClearEmptiedTransferSource();
+                return;
+            }
+
+            if (amount <= 0f)
+            {
+                return;
+            }
+
+            bool transferred = selectedSourceContainer.TransferTo(targetContainer, amount);
+            if (transferred && debugUI != null)
+            {
+                debugUI.SetVolume(targetContainer.DisplayName, targetContainer.CurrentVolume, targetContainer.MaxVolume);
+            }
+
+            if (selectedSourceContainer != null && selectedSourceContainer.IsEmpty())
+            {
+                ClearEmptiedTransferSource();
+            }
+        }
+
+        // ===== 当前容器转移速度 =====
+        // Jigger 作为源容器时使用专用快速速度；其他容器使用普通转移速度。
+        private float GetCurrentTransferRatePerSecond()
+        {
+            if (selectedSourceContainer != null &&
+                selectedSourceContainer.containerType == DrinkContainer.ContainerType.Jigger)
+            {
+                return jiggerTransferRatePerSecond;
+            }
+
+            return defaultTransferRatePerSecond;
+        }
+
+        // ===== Jigger 瞬间转移判断 =====
+        // 只在 Jigger 为源容器且 Inspector 勾选 instantJiggerTransfer 时启用。
+        private bool ShouldInstantTransferFromJigger()
+        {
+            return instantJiggerTransfer &&
+                selectedSourceContainer != null &&
+                selectedSourceContainer.containerType == DrinkContainer.ContainerType.Jigger;
         }
 
         // ===== 停止倒入 =====
@@ -476,6 +542,19 @@ namespace CupPrototype.DrinkSystem
             UpdateTransferSourceUI();
         }
 
+        // ===== 源容器空后自动清除 =====
+        // Jigger 或 Shaker 转移完成变空时调用，防止空容器继续占用转移输入状态。
+        private void ClearEmptiedTransferSource()
+        {
+            selectedSourceContainer = null;
+            currentTransferTargetContainer = null;
+            isTransferringContainer = false;
+            UpdateDragBlockState();
+            SetInputMode(InputMode.Idle);
+            Debug.Log("[DrinkTestManager] Transfer source emptied and cleared.", this);
+            UpdateTransferSourceUI();
+        }
+
         // ===== 更新转移源 UI =====
         private void UpdateTransferSourceUI()
         {
@@ -550,9 +629,11 @@ namespace CupPrototype.DrinkSystem
                 return;
             }
 
-            Debug.Log($"[DrinkTestManager] Scoring container: {drinkContainer.DisplayName}, Ingredients: {drinkContainer.GetIngredientDebugString()}", drinkContainer);
+            Debug.Log($"[DrinkTestManager] Scoring container: {drinkContainer.DisplayName}, MixState={drinkContainer.mixState}, Ingredients: {drinkContainer.GetIngredientDebugString()}", drinkContainer);
 
             DrinkScoreResult scoreResult = DrinkScoreSystem.ScoreDrink(drinkContainer, targetDrink);
+            Debug.Log($"[DrinkTestManager] Preparation: {targetDrink.requiredPreparation}, Matched={scoreResult.preparationMatched}, Feedback={scoreResult.preparationFeedback}", drinkContainer);
+
             string missingIngredients = scoreResult.missingRequiredIngredients.Count > 0
                 ? string.Join(", ", scoreResult.missingRequiredIngredients)
                 : "None";
@@ -564,6 +645,7 @@ namespace CupPrototype.DrinkSystem
                 $"Volume: {scoreResult.volumeScore:0.0}/20\n" +
                 $"Ingredient: {scoreResult.ingredientScore:0.0}/20\n" +
                 $"Missing: {missingIngredients}\n" +
+                $"Prep: {scoreResult.preparationFeedback}\n" +
                 $"Feedback: {scoreResult.feedbackText}",
                 drinkContainer);
 
@@ -620,24 +702,55 @@ namespace CupPrototype.DrinkSystem
             Debug.Log(builder.ToString(), this);
         }
 
-        // ===== 快捷键 R：清空杯子 =====
+        // ===== 快捷键 R：清空所有容器 =====
+        // 原型调试时 R 作为全局重置：清空 Cup、Jigger、Shaker 等所有 DrinkContainer，
+        // 同时重置输入状态和材料高亮，避免旧选择影响下一轮流程测试。
         private void ClearCurrentDrink()
         {
-            DrinkContainer drinkContainer = FindFirstObjectByType<DrinkContainer>();
-            if (drinkContainer == null)
+            DrinkContainer[] containers = FindObjectsByType<DrinkContainer>(FindObjectsSortMode.None);
+            if (containers.Length == 0)
             {
                 Debug.Log("No DrinkContainer found in the scene.", this);
                 return;
             }
 
-            drinkContainer.Clear();
-            Debug.Log("Cup cleared.", drinkContainer);
+            foreach (DrinkContainer container in containers)
+            {
+                container.Clear();
+            }
+
+            ClearAllSelectionHighlights();
+            selectedIngredient = null;
+            currentSelectedIngredient = null;
+            selectedSourceContainer = null;
+            currentPourContainer = null;
+            currentTransferTargetContainer = null;
+            isPouring = false;
+            isTransferringContainer = false;
+            promptedMissingIngredientThisPress = false;
+            HasSelectedIngredient = false;
+            SetInputMode(InputMode.Idle);
+
+            Debug.Log("[DrinkTestManager] Cleared all containers.", this);
 
             if (debugUI != null)
             {
-                debugUI.SetVolume(drinkContainer.DisplayName, 0f, drinkContainer.MaxVolume);
+                debugUI.SetSelectedIngredient("None");
+                debugUI.SetTransferSource("None");
+                debugUI.SetVolume(0f, 0f);
                 debugUI.SetTasteFeedback("None");
                 debugUI.SetScoreResult(null);
+            }
+        }
+
+        // ===== 清除全部材料高亮 =====
+        // 全局重置时使用，确保所有材料瓶的 SelectionHighlight 都恢复未选中。
+        private void ClearAllSelectionHighlights()
+        {
+            SelectionHighlight[] highlights = FindObjectsByType<SelectionHighlight>(FindObjectsSortMode.None);
+            foreach (SelectionHighlight highlight in highlights)
+            {
+                highlight.SetHighlighted(false);
             }
         }
     }

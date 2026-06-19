@@ -15,5 +15,10 @@ namespace CupPrototype.DrinkSystem
         // ===== 缺失材料和反馈 =====
         public List<string> missingRequiredIngredients = new List<string>();
         public string feedbackText;
+
+        // ===== 制作方式提示 =====
+        // 当前只用于 Console / Debug UI 提示，不参与 totalScore。
+        public bool preparationMatched;
+        public string preparationFeedback;
     }
 }
