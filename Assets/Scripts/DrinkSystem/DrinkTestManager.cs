@@ -1,4 +1,5 @@
 using CupPrototype.Interaction;
+using CupPrototype.Flair;
 using CupPrototype.UI;
 using System;
 using System.Text;
@@ -46,6 +47,8 @@ namespace CupPrototype.DrinkSystem
         private DrinkContainer selectedSourceContainer;
         private DrinkContainer currentPourContainer;
         private DrinkContainer currentTransferTargetContainer;
+        // 记录当前正在倒入的材料瓶倾斜反馈，避免每帧重复触发 StartTiltTowards。
+        private PourTiltFeedback activeIngredientTiltFeedback;
         private bool isPouring;
         private bool isTransferringContainer;
         private bool promptedMissingIngredientThisPress;
@@ -116,6 +119,23 @@ namespace CupPrototype.DrinkSystem
         // 3. 两者都没有时，本脚本不处理拖拽，让 DragController 正常移动物体，ShakerController 再根据移动距离累计摇晃。
         private void HandleMouseInput()
         {
+            // 花式模式接管鼠标输入时，防止画圈经过容器误触发倒入或容器转移。
+            if (FlairGestureController.IsFlairInputActive || FlairGestureController.IsFlairPlaying)
+            {
+                if (isPouring)
+                {
+                    StopIngredientPour();
+                }
+
+                if (isTransferringContainer)
+                {
+                    StopContainerTransfer();
+                }
+
+                promptedMissingIngredientThisPress = false;
+                return;
+            }
+
             if (Input.GetMouseButtonDown(0))
             {
                 promptedMissingIngredientThisPress = false;
@@ -205,6 +225,7 @@ namespace CupPrototype.DrinkSystem
 
             if (currentSelectedIngredient != null && currentSelectedIngredient != clickedIngredient)
             {
+                StopIngredientPour();
                 SelectionHighlight previousHighlight = currentSelectedIngredient.GetComponent<SelectionHighlight>();
                 if (previousHighlight != null)
                 {
@@ -247,6 +268,7 @@ namespace CupPrototype.DrinkSystem
                 return;
             }
 
+            StopContainerTransfer();
             selectedSourceContainer = clickedContainer;
             UpdateDragBlockState();
             SetInputMode(InputMode.ContainerSourceSelected);
@@ -383,6 +405,8 @@ namespace CupPrototype.DrinkSystem
             isPouring = true;
             SetInputMode(InputMode.PouringIngredient);
 
+            StartSelectedIngredientTilt(targetContainer);
+
             string ingredientName = selectedIngredient != null && selectedIngredient.ingredientData != null
                 ? selectedIngredient.ingredientData.ingredientName
                 : "Ingredient data not assigned";
@@ -401,6 +425,13 @@ namespace CupPrototype.DrinkSystem
             currentTransferTargetContainer = targetContainer;
             isTransferringContainer = true;
             SetInputMode(InputMode.TransferringContainer);
+
+            // 这是视觉反馈，不影响液体转移数据。
+            PourTiltFeedback tiltFeedback = selectedSourceContainer.GetComponent<PourTiltFeedback>();
+            if (tiltFeedback != null)
+            {
+                tiltFeedback.StartTiltTowards(targetContainer.transform.position);
+            }
         }
 
         // ===== 容器转移执行入口 =====
@@ -462,6 +493,8 @@ namespace CupPrototype.DrinkSystem
         // ===== 停止倒入 =====
         private void StopIngredientPour()
         {
+            StopActiveIngredientTilt();
+
             if (!isPouring)
             {
                 currentPourContainer = null;
@@ -475,9 +508,41 @@ namespace CupPrototype.DrinkSystem
             SetInputMode(selectedIngredient != null ? InputMode.IngredientSelected : InputMode.Idle);
         }
 
+        private void StartSelectedIngredientTilt(DrinkContainer targetContainer)
+        {
+            PourTiltFeedback tiltFeedback = currentSelectedIngredient != null
+                ? currentSelectedIngredient.GetComponent<PourTiltFeedback>()
+                : null;
+
+            if (tiltFeedback == null || activeIngredientTiltFeedback == tiltFeedback)
+            {
+                return;
+            }
+
+            StopActiveIngredientTilt();
+            activeIngredientTiltFeedback = tiltFeedback;
+
+            // 材料瓶倒入时的视觉反馈，不影响实际材料添加、容量或评分。
+            activeIngredientTiltFeedback.StartTiltTowards(targetContainer.transform.position);
+        }
+
+        private void StopActiveIngredientTilt()
+        {
+            if (activeIngredientTiltFeedback == null)
+            {
+                return;
+            }
+
+            // 松开鼠标或取消选择时让材料瓶回正。
+            activeIngredientTiltFeedback.StopTilt();
+            activeIngredientTiltFeedback = null;
+        }
+
         // ===== 停止容器转移 =====
         private void StopContainerTransfer()
         {
+            StopSelectedSourceTilt();
+
             if (!isTransferringContainer)
             {
                 currentTransferTargetContainer = null;
@@ -488,6 +553,21 @@ namespace CupPrototype.DrinkSystem
             currentTransferTargetContainer = null;
             isTransferringContainer = false;
             SetInputMode(selectedSourceContainer != null ? InputMode.ContainerSourceSelected : InputMode.Idle);
+        }
+
+        // 这是视觉反馈，不影响液体转移数据。
+        private void StopSelectedSourceTilt()
+        {
+            if (selectedSourceContainer == null)
+            {
+                return;
+            }
+
+            PourTiltFeedback tiltFeedback = selectedSourceContainer.GetComponent<PourTiltFeedback>();
+            if (tiltFeedback != null)
+            {
+                tiltFeedback.StopTilt();
+            }
         }
 
         // ===== 未选择材料提示 =====
@@ -515,10 +595,10 @@ namespace CupPrototype.DrinkSystem
                 }
             }
 
+            StopIngredientPour();
             selectedIngredient = null;
             currentSelectedIngredient = null;
             UpdateDragBlockState();
-            StopIngredientPour();
             SetInputMode(InputMode.Idle);
 
             Debug.Log("[DrinkTestManager] Ingredient selection cleared.", this);
@@ -533,8 +613,8 @@ namespace CupPrototype.DrinkSystem
                 return;
             }
 
-            selectedSourceContainer = null;
             StopContainerTransfer();
+            selectedSourceContainer = null;
             UpdateDragBlockState();
             SetInputMode(currentSelectedIngredient != null ? InputMode.IngredientSelected : InputMode.Idle);
 
@@ -546,6 +626,7 @@ namespace CupPrototype.DrinkSystem
         // Jigger 或 Shaker 转移完成变空时调用，防止空容器继续占用转移输入状态。
         private void ClearEmptiedTransferSource()
         {
+            StopSelectedSourceTilt();
             selectedSourceContainer = null;
             currentTransferTargetContainer = null;
             isTransferringContainer = false;
@@ -707,6 +788,9 @@ namespace CupPrototype.DrinkSystem
         // 同时重置输入状态和材料高亮，避免旧选择影响下一轮流程测试。
         private void ClearCurrentDrink()
         {
+            StopActiveIngredientTilt();
+            StopSelectedSourceTilt();
+
             DrinkContainer[] containers = FindObjectsByType<DrinkContainer>(FindObjectsSortMode.None);
             if (containers.Length == 0)
             {

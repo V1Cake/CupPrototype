@@ -1,4 +1,5 @@
 using CupPrototype.DrinkSystem;
+using CupPrototype.Flair;
 using UnityEngine;
 
 namespace CupPrototype.Interaction
@@ -34,6 +35,13 @@ namespace CupPrototype.Interaction
         // ===== 每帧输入入口 =====
         private void Update()
         {
+            // 花式模式接管鼠标输入时，防止画圈同时拖动物体。
+            if (FlairGestureController.IsFlairInputActive || FlairGestureController.IsFlairPlaying)
+            {
+                StopDrag();
+                return;
+            }
+
             if (targetCamera == null)
             {
                 return;
@@ -58,6 +66,12 @@ namespace CupPrototype.Interaction
         // ===== 开始拖拽 =====
         private void TryStartDrag()
         {
+            if (FlairGestureController.IsFlairInputActive || FlairGestureController.IsFlairPlaying)
+            {
+                StopDrag();
+                return;
+            }
+
             // 只在按下瞬间用 Raycast 判断点中了哪个可拖拽物体。
             Ray ray = targetCamera.ScreenPointToRay(Input.mousePosition);
 
@@ -106,6 +120,12 @@ namespace CupPrototype.Interaction
         // ===== 拖拽中：只更新 X/Z，锁定 Y =====
         private void DragCurrentObject()
         {
+            if (FlairGestureController.IsFlairInputActive || FlairGestureController.IsFlairPlaying)
+            {
+                StopDrag();
+                return;
+            }
+
             // 拖拽过程中只用固定高度平面计算鼠标位置，不再依赖任何 collider hit.point。
             if (!TryGetMousePointOnDragPlane(out Vector3 mousePoint))
             {

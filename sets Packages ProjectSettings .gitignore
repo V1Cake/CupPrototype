@@ -1,0 +1,11 @@
+warning: in the working copy of 'Assets/Data/TargetDrinks/LemonSweet_Test.asset', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Assets/Scenes/SampleScene.unity', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Assets/Scripts/DrinkSystem/DrinkTestManager.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Assets/Scripts/Interaction/DragController.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Assets/Scripts/Interaction/SelectionHighlight.cs', LF will be replaced by CRLF the next time Git touches it
+ Assets/Data/TargetDrinks/LemonSweet_Test.asset   |   1 [32m+[m
+ Assets/Scenes/SampleScene.unity                  | 744 [32m++++++++++++++++[m[31m-------[m
+ Assets/Scripts/DrinkSystem/DrinkTestManager.cs   |  88 [32m++[m[31m-[m
+ Assets/Scripts/Interaction/DragController.cs     |  20 [32m+[m
+ Assets/Scripts/Interaction/SelectionHighlight.cs |  95 [32m++[m[31m-[m
+ 5 files changed, 700 insertions(+), 248 deletions(-)

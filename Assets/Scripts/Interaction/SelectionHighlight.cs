@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CupPrototype.Interaction
@@ -12,68 +13,96 @@ namespace CupPrototype.Interaction
         [SerializeField] private Color outlineColor = Color.yellow;
         [SerializeField] private float outlineScale = 1.08f;
 
+        private Renderer[] targetRenderers;
+        private readonly List<GameObject> outlineObjects = new List<GameObject>();
+
         // ===== 生命周期：初始化外轮廓对象 =====
         private void Awake()
         {
-            if (targetRenderer == null)
-            {
-                targetRenderer = GetComponent<Renderer>();
-            }
-
-            if (outlineObject == null)
-            {
-                CreateOutlineObject();
-            }
+            ResolveTargetRenderers();
 
             if (outlineObject != null)
             {
-                outlineObject.SetActive(false);
+                outlineObjects.Add(outlineObject);
+            }
+            else
+            {
+                CreateOutlineObjects();
+            }
+
+            for (int i = 0; i < outlineObjects.Count; i++)
+            {
+                outlineObjects[i].SetActive(false);
             }
         }
 
         // ===== 对外接口：开关高亮 =====
         public void SetHighlighted(bool highlighted)
         {
-            if (outlineObject == null)
+            for (int i = 0; i < outlineObjects.Count; i++)
             {
-                return;
+                outlineObjects[i].SetActive(highlighted);
             }
-
-            outlineObject.SetActive(highlighted);
         }
 
-        // ===== 自动创建伪外轮廓对象 =====
-        private void CreateOutlineObject()
+        private void ResolveTargetRenderers()
         {
             if (targetRenderer == null)
             {
-                Debug.LogWarning("SelectionHighlight needs a Renderer to create an outline object.", this);
-                return;
+                // VisualRoot 结构下 Renderer 可能在子物体，例如 VisualRoot/Bottle_Model。
+                targetRenderers = GetComponentsInChildren<Renderer>(true);
+                if (targetRenderers.Length == 0)
+                {
+                    Debug.LogWarning($"[SelectionHighlight] No Renderer found on {name} or its children.", this);
+                }
             }
-
-            MeshFilter sourceMeshFilter = GetComponent<MeshFilter>();
-            if (sourceMeshFilter == null || sourceMeshFilter.sharedMesh == null)
+            else
             {
-                Debug.LogWarning("SelectionHighlight needs a MeshFilter with a mesh to create an outline object.", this);
+                targetRenderers = new[] { targetRenderer };
+            }
+        }
+
+        // ===== 自动创建伪外轮廓对象 =====
+        private void CreateOutlineObjects()
+        {
+            if (targetRenderers == null || targetRenderers.Length == 0)
+            {
                 return;
             }
 
-            outlineObject = new GameObject("OutlineVisual");
-            outlineObject.transform.SetParent(transform);
-            outlineObject.transform.localPosition = Vector3.zero;
-            outlineObject.transform.localRotation = Quaternion.identity;
-            outlineObject.transform.localScale = Vector3.one * outlineScale;
+            for (int i = 0; i < targetRenderers.Length; i++)
+            {
+                Renderer renderer = targetRenderers[i];
+                MeshFilter sourceMeshFilter = renderer.GetComponent<MeshFilter>();
+                if (sourceMeshFilter == null || sourceMeshFilter.sharedMesh == null)
+                {
+                    Debug.LogWarning($"[SelectionHighlight] Renderer {renderer.name} needs a MeshFilter with a mesh to create an outline object.", this);
+                    continue;
+                }
 
-            MeshFilter outlineMeshFilter = outlineObject.AddComponent<MeshFilter>();
-            outlineMeshFilter.sharedMesh = sourceMeshFilter.sharedMesh;
+                GameObject createdOutline = new GameObject("OutlineVisual");
+                createdOutline.transform.SetParent(renderer.transform);
+                createdOutline.transform.localPosition = Vector3.zero;
+                createdOutline.transform.localRotation = Quaternion.identity;
+                createdOutline.transform.localScale = Vector3.one * outlineScale;
 
-            MeshRenderer outlineRenderer = outlineObject.AddComponent<MeshRenderer>();
-            outlineRenderer.sharedMaterial = CreateOutlineMaterial();
+                MeshFilter outlineMeshFilter = createdOutline.AddComponent<MeshFilter>();
+                outlineMeshFilter.sharedMesh = sourceMeshFilter.sharedMesh;
+
+                MeshRenderer outlineRenderer = createdOutline.AddComponent<MeshRenderer>();
+                outlineRenderer.sharedMaterial = CreateOutlineMaterial(renderer);
+
+                outlineObjects.Add(createdOutline);
+                if (outlineObject == null)
+                {
+                    outlineObject = createdOutline;
+                }
+            }
         }
 
         // ===== 创建外轮廓材质 =====
         // 优先使用 URP/Lit，并尽量开启 emission，保证原型阶段容易看见。
-        private Material CreateOutlineMaterial()
+        private Material CreateOutlineMaterial(Renderer sourceRenderer)
         {
             Shader shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
@@ -91,9 +120,9 @@ namespace CupPrototype.Interaction
             {
                 material = new Material(shader);
             }
-            else if (targetRenderer.sharedMaterial != null)
+            else if (sourceRenderer.sharedMaterial != null)
             {
-                material = new Material(targetRenderer.sharedMaterial);
+                material = new Material(sourceRenderer.sharedMaterial);
             }
             else
             {
@@ -101,7 +130,7 @@ namespace CupPrototype.Interaction
                 Shader fallbackShader = Shader.Find("Sprites/Default");
                 material = fallbackShader != null
                     ? new Material(fallbackShader)
-                    : new Material(targetRenderer.material);
+                    : new Material(sourceRenderer.material);
             }
 
             if (material.HasProperty("_BaseColor"))
