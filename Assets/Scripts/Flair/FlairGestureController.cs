@@ -25,6 +25,9 @@ namespace CupPrototype.Flair
         // 是否输出识别和动作日志。
         public bool debugLogs = true;
 
+        // 运行时手势模板库；玩家轨迹会和这里的开发者模板匹配。
+        public GestureTemplateLibrary templateLibrary;
+
         private FlairableTool activeTool;
         private List<Vector2> recordedPoints;
         private bool isRecording;
@@ -45,8 +48,13 @@ namespace CupPrototype.Flair
                 mainCamera = Camera.main;
             }
 
+            if (templateLibrary == null)
+            {
+                templateLibrary = GetComponent<GestureTemplateLibrary>();
+            }
+
             recordedPoints = new List<Vector2>();
-            recognizer = new FlairGestureRecognizer();
+            recognizer = new FlairGestureRecognizer(templateLibrary);
         }
 
         private void OnDisable()
@@ -84,7 +92,19 @@ namespace CupPrototype.Flair
 
         private void TryStartRecording()
         {
-            if (mainCamera == null || !TryGetToolUnderMouse(out FlairableTool tool))
+            if (mainCamera == null || isRecording || GestureTemplateRecorder.IsTemplateRecording)
+            {
+                return;
+            }
+
+            TryGetToolUnderMouse(out FlairableTool tool);
+            if (tool != null && tool.IsPlayingFlair)
+            {
+                Debug.Log($"[FlairableTool] Flair already playing on {tool.name}", tool);
+                return;
+            }
+
+            if (IsFlairPlaying)
             {
                 return;
             }
@@ -101,22 +121,36 @@ namespace CupPrototype.Flair
             isRecording = false;
             IsFlairInputActive = false;
 
-            FlairGestureType gesture = recognizer.Recognize(recordedPoints);
-            if (gesture != FlairGestureType.None && debugLogs)
+            GestureMatchResult match = recognizer.RecognizeDetailed(recordedPoints);
+            if (!match.isMatched)
             {
-                Debug.Log($"[FlairGestureController] Recognized: {gesture}", this);
-            }
-
-            if (gesture != FlairGestureType.None &&
-                activeTool != null &&
-                activeTool.TryGetAction(gesture, out FlairActionDefinition action))
-            {
+                // 识别失败只结束花式输入，不修改材料、容器或普通游戏数据。
                 if (debugLogs)
                 {
-                    Debug.Log($"[FlairGestureController] Action: {action.actionName}", activeTool);
+                    Debug.Log("[FlairGestureController] Gesture not recognized.", this);
                 }
+            }
+            else if (debugLogs)
+            {
+                Debug.Log($"[FlairGestureController] Recognized: {match.gestureType}, Template={match.templateId}", this);
+            }
 
-                activeTool.PlayFlair(action);
+            if (match.isMatched)
+            {
+                if (activeTool != null &&
+                    activeTool.TryGetAction(match, out FlairActionDefinition action))
+                {
+                    if (debugLogs)
+                    {
+                        Debug.Log($"[FlairGestureController] Action: {action.actionName}", activeTool);
+                    }
+
+                    activeTool.PlayFlair(action);
+                }
+                else if (debugLogs)
+                {
+                    Debug.Log($"[FlairGestureController] No action configured for template {match.templateId} or gesture {match.gestureType}", activeTool != null ? activeTool : this);
+                }
             }
 
             activeTool = null;

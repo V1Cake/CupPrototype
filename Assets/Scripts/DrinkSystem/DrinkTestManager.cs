@@ -119,8 +119,10 @@ namespace CupPrototype.DrinkSystem
         // 3. 两者都没有时，本脚本不处理拖拽，让 DragController 正常移动物体，ShakerController 再根据移动距离累计摇晃。
         private void HandleMouseInput()
         {
-            // 花式模式接管鼠标输入时，防止画圈经过容器误触发倒入或容器转移。
-            if (FlairGestureController.IsFlairInputActive || FlairGestureController.IsFlairPlaying)
+            // 花式或模板录制接管鼠标输入时，防止轨迹经过容器误触发倒入、转移或材料选择。
+            if (FlairGestureController.IsFlairInputActive ||
+                FlairGestureController.IsFlairPlaying ||
+                GestureTemplateRecorder.IsTemplateRecording)
             {
                 if (isPouring)
                 {

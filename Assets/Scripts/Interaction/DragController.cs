@@ -35,8 +35,10 @@ namespace CupPrototype.Interaction
         // ===== 每帧输入入口 =====
         private void Update()
         {
-            // 花式模式接管鼠标输入时，防止画圈同时拖动物体。
-            if (FlairGestureController.IsFlairInputActive || FlairGestureController.IsFlairPlaying)
+            // 花式或模板录制接管鼠标输入时，防止画轨迹同时拖动物体。
+            if (FlairGestureController.IsFlairInputActive ||
+                FlairGestureController.IsFlairPlaying ||
+                GestureTemplateRecorder.IsTemplateRecording)
             {
                 StopDrag();
                 return;
@@ -66,7 +68,9 @@ namespace CupPrototype.Interaction
         // ===== 开始拖拽 =====
         private void TryStartDrag()
         {
-            if (FlairGestureController.IsFlairInputActive || FlairGestureController.IsFlairPlaying)
+            if (FlairGestureController.IsFlairInputActive ||
+                FlairGestureController.IsFlairPlaying ||
+                GestureTemplateRecorder.IsTemplateRecording)
             {
                 StopDrag();
                 return;
@@ -120,7 +124,9 @@ namespace CupPrototype.Interaction
         // ===== 拖拽中：只更新 X/Z，锁定 Y =====
         private void DragCurrentObject()
         {
-            if (FlairGestureController.IsFlairInputActive || FlairGestureController.IsFlairPlaying)
+            if (FlairGestureController.IsFlairInputActive ||
+                FlairGestureController.IsFlairPlaying ||
+                GestureTemplateRecorder.IsTemplateRecording)
             {
                 StopDrag();
                 return;

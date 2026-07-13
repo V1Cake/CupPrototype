@@ -18,6 +18,16 @@ namespace CupPrototype.Interaction
         {
             if (visualRoot == null)
             {
+                // 批量创建工具 Prefab 时自动找 VisualRoot，减少手动绑定。
+                visualRoot = transform.Find("VisualRoot");
+                if (visualRoot != null)
+                {
+                    Debug.Log($"[PourTiltFeedback] Auto-bound VisualRoot on {name}", this);
+                }
+            }
+
+            if (visualRoot == null)
+            {
                 Debug.LogWarning("[PourTiltFeedback] visualRoot is missing. Tilt feedback skipped.", this);
                 return;
             }

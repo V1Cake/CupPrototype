@@ -53,7 +53,7 @@ namespace CupPrototype.Interaction
                 targetRenderers = GetComponentsInChildren<Renderer>(true);
                 if (targetRenderers.Length == 0)
                 {
-                    Debug.LogWarning($"[SelectionHighlight] No Renderer found on {name} or its children.", this);
+                    Debug.LogWarning($"[SelectionHighlight] No renderer found on {name}", this);
                 }
             }
             else

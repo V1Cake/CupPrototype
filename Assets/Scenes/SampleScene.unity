@@ -383,153 +383,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 36402035}
   m_CullTransparentMesh: 1
---- !u!1 &172597103
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 172597108}
-  - component: {fileID: 172597107}
-  - component: {fileID: 172597106}
-  - component: {fileID: 172597105}
-  - component: {fileID: 172597104}
-  - component: {fileID: 172597109}
-  m_Layer: 0
-  m_Name: Bottle_Syrup_Test
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!136 &172597104
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 172597103}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5000001
-  m_Height: 2
-  m_Direction: 1
-  m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
---- !u!114 &172597105
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 172597103}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c4270f906eeb13741a0a953996e9ad0d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.DrinkSystem.PourableIngredient
-  ingredientData: {fileID: 11400000, guid: 77bf3eb5ac44bb342ace0435e29aea87, type: 2}
-  defaultPourAmount: 20
-  pourRatePerSecond: 30
---- !u!23 &172597106
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 172597103}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &172597107
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 172597103}
-  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &172597108
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 172597103}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.2, y: 0.9, z: 0.44}
-  m_LocalScale: {x: 0.35, y: 0.9, z: 0.35}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &172597109
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 172597103}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: af339212c793d794d9a35a5157fcbfbe, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Interaction.SelectionHighlight
-  targetRenderer: {fileID: 172597106}
-  outlineObject: {fileID: 0}
-  outlineColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 0.19607843}
-  outlineScale: 1.08
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -838,6 +691,9 @@ GameObject:
   - component: {fileID: 479408768}
   - component: {fileID: 479408767}
   - component: {fileID: 479408769}
+  - component: {fileID: 479408770}
+  - component: {fileID: 479408772}
+  - component: {fileID: 479408771}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -902,6 +758,58 @@ MonoBehaviour:
   jiggerTransferRatePerSecond: 300
   instantJiggerTransfer: 0
   containerTransferRatePerSecond: 30
+--- !u!114 &479408770
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 479408766}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a26f4d0e6aa66f42bf7383d5dad6a13, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Flair.FlairGestureController
+  mainCamera: {fileID: 0}
+  flairModifierKey: 32
+  interactableMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  debugLogs: 1
+  templateLibrary: {fileID: 0}
+--- !u!114 &479408771
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 479408766}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19a90ce9fc8e16040bf716a4365f8d73, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Flair.GestureTemplateRecorder
+  recordTemplateKey: 103
+  recordingGestureType: 1
+  templateIdPrefix: DevTemplate
+  debugLogs: 1
+  templateLibrary: {fileID: 0}
+  saveRecordedTemplateAsAsset: 0
+  assetSaveFolder: Assets/Data/GestureTemplates
+--- !u!114 &479408772
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 479408766}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7b71034ec978b0942be673fbf20c2e71, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Flair.GestureTemplateLibrary
+  templateAssets:
+  - {fileID: 11400000, guid: 6933b9cfbc301ce4e84b76aecd41f5cf, type: 2}
 --- !u!1 &648440282
 GameObject:
   m_ObjectHideFlags: 0
@@ -1247,6 +1155,205 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &837258946
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 837258952}
+  - component: {fileID: 837258951}
+  - component: {fileID: 837258950}
+  - component: {fileID: 837258949}
+  - component: {fileID: 837258948}
+  - component: {fileID: 837258947}
+  m_Layer: 0
+  m_Name: Bottle_Syrup_Test
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &837258947
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 837258946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1192d5d0a3c073142beb98543d348c30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Flair.FlairableTool
+  visualRoot: {fileID: 0}
+  enableFlair: 1
+  actions:
+  - actionName: BottleSpinBasic
+    gestureType: 1
+    requiredTemplateId: 
+    animationTrigger: 
+    testAnimationType: 0
+    duration: 0.5
+    spinDegrees: 360
+    spinAxis: {x: 0, y: 0, z: 1}
+    shakeDistance: 0.08
+    shakeCount: 4
+    popUpHeight: 0.25
+    requiresQTE: 0
+    canFail: 0
+--- !u!114 &837258948
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 837258946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 413e153a39d2f9b4da28ca836bb05074, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Interaction.PourTiltFeedback
+  visualRoot: {fileID: 0}
+  tiltAngle: 18
+  tiltSpeed: 8
+  enableTilt: 1
+--- !u!114 &837258949
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 837258946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af339212c793d794d9a35a5157fcbfbe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Interaction.SelectionHighlight
+  targetRenderer: {fileID: 0}
+  outlineObject: {fileID: 0}
+  outlineColor: {r: 1, g: 0.9733143, b: 0.6650944, a: 0.19607843}
+  outlineScale: 1.08
+--- !u!136 &837258950
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 837258946}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5000001
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
+--- !u!114 &837258951
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 837258946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4270f906eeb13741a0a953996e9ad0d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.DrinkSystem.PourableIngredient
+  ingredientData: {fileID: 11400000, guid: 77bf3eb5ac44bb342ace0435e29aea87, type: 2}
+  defaultPourAmount: 20
+  pourRatePerSecond: 30
+--- !u!4 &837258952
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 837258946}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.355, y: 0.9, z: 0.46}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 941149322}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &941149321
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 941149322}
+  m_Layer: 0
+  m_Name: VisualRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &941149322
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 941149321}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1715488518}
+  m_Father: {fileID: 837258952}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1053344443
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1053344444}
+  m_Layer: 0
+  m_Name: VisualRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1053344444
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1053344443}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1630089691}
+  m_Father: {fileID: 1230188736}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1098376704
 GameObject:
   m_ObjectHideFlags: 0
@@ -1375,6 +1482,7 @@ GameObject:
   - component: {fileID: 1139248529}
   - component: {fileID: 1139248535}
   - component: {fileID: 1139248536}
+  - component: {fileID: 1139248537}
   m_Layer: 0
   m_Name: Cup_Test
   m_TagString: Untagged
@@ -1496,6 +1604,47 @@ MonoBehaviour:
   tiltAngle: 18
   tiltSpeed: 8
   enableTilt: 1
+--- !u!114 &1139248537
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1139248528}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1192d5d0a3c073142beb98543d348c30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Flair.FlairableTool
+  visualRoot: {fileID: 0}
+  enableFlair: 1
+  actions:
+  - actionName: CupSpinBasic
+    gestureType: 1
+    requiredTemplateId: 
+    animationTrigger: 
+    testAnimationType: 4
+    duration: 0.5
+    spinDegrees: 360
+    spinAxis: {x: 0, y: 0, z: 1}
+    shakeDistance: 0.08
+    shakeCount: 4
+    popUpHeight: 0.25
+    requiresQTE: 0
+    canFail: 0
+  - actionName: CupLiftBasic
+    gestureType: 2
+    requiredTemplateId: 
+    animationTrigger: 
+    testAnimationType: 5
+    duration: 0.5
+    spinDegrees: 0
+    spinAxis: {x: 0, y: 0, z: 0}
+    shakeDistance: 0
+    shakeCount: 0
+    popUpHeight: 0.15
+    requiresQTE: 0
+    canFail: 0
 --- !u!1 &1230188731
 GameObject:
   m_ObjectHideFlags: 0
@@ -1505,11 +1654,11 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1230188736}
-  - component: {fileID: 1230188735}
-  - component: {fileID: 1230188734}
   - component: {fileID: 1230188733}
   - component: {fileID: 1230188732}
   - component: {fileID: 1230188737}
+  - component: {fileID: 1230188738}
+  - component: {fileID: 1230188739}
   m_Layer: 0
   m_Name: Bottle_LemonJuice_Test
   m_TagString: Untagged
@@ -1555,63 +1704,6 @@ MonoBehaviour:
   ingredientData: {fileID: 11400000, guid: b59588db75f91394193b06a16c550220, type: 2}
   defaultPourAmount: 20
   pourRatePerSecond: 30
---- !u!23 &1230188734
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1230188731}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1230188735
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1230188731}
-  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!4 &1230188736
 Transform:
   m_ObjectHideFlags: 0
@@ -1622,9 +1714,10 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 1.3, y: 0.9, z: 0.46}
-  m_LocalScale: {x: 0.35, y: 0.9, z: 0.35}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1053344444}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1230188737
@@ -1639,10 +1732,67 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: af339212c793d794d9a35a5157fcbfbe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Interaction.SelectionHighlight
-  targetRenderer: {fileID: 1230188734}
+  targetRenderer: {fileID: 0}
   outlineObject: {fileID: 0}
   outlineColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 0.19607843}
   outlineScale: 1.08
+--- !u!114 &1230188738
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230188731}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 413e153a39d2f9b4da28ca836bb05074, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Interaction.PourTiltFeedback
+  visualRoot: {fileID: 0}
+  tiltAngle: 18
+  tiltSpeed: 8
+  enableTilt: 1
+--- !u!114 &1230188739
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230188731}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1192d5d0a3c073142beb98543d348c30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Flair.FlairableTool
+  visualRoot: {fileID: 0}
+  enableFlair: 1
+  actions:
+  - actionName: BottleSpinBasic
+    gestureType: 1
+    requiredTemplateId: 
+    animationTrigger: 
+    testAnimationType: 0
+    duration: 0.5
+    spinDegrees: 360
+    spinAxis: {x: 0, y: 0, z: 1}
+    shakeDistance: 0.08
+    shakeCount: 4
+    popUpHeight: 0.25
+    requiresQTE: 0
+    canFail: 0
+  - actionName: BottleFlickUpBasic
+    gestureType: 2
+    requiredTemplateId: BottleLoop_01
+    animationTrigger: 
+    testAnimationType: 5
+    duration: 0.5
+    spinDegrees: 0
+    spinAxis: {x: 0, y: 0, z: 0}
+    shakeDistance: 0
+    shakeCount: 0
+    popUpHeight: 0.25
+    requiresQTE: 0
+    canFail: 0
 --- !u!1 &1233255117
 GameObject:
   m_ObjectHideFlags: 0
@@ -1816,6 +1966,7 @@ GameObject:
   - component: {fileID: 1279254629}
   - component: {fileID: 1279254628}
   - component: {fileID: 1279254636}
+  - component: {fileID: 1279254637}
   m_Layer: 0
   m_Name: Shaker_Test
   m_TagString: Untagged
@@ -1955,6 +2106,34 @@ MonoBehaviour:
   tiltAngle: 18
   tiltSpeed: 8
   enableTilt: 1
+--- !u!114 &1279254637
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1279254627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1192d5d0a3c073142beb98543d348c30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Flair.FlairableTool
+  visualRoot: {fileID: 0}
+  enableFlair: 1
+  actions:
+  - actionName: ShakerSpinBasic
+    gestureType: 1
+    requiredTemplateId: 
+    animationTrigger: 
+    testAnimationType: 2
+    duration: 0.5
+    spinDegrees: 360
+    spinAxis: {x: 0, y: 0, z: 1}
+    shakeDistance: 0.08
+    shakeCount: 4
+    popUpHeight: 0.25
+    requiresQTE: 0
+    canFail: 0
 --- !u!1 &1457448234
 GameObject:
   m_ObjectHideFlags: 0
@@ -2518,6 +2697,120 @@ MonoBehaviour:
   liquidMaxScaleY: 0.48
   liquidBottomOffset: -0.45
   hideWhenEmpty: 1
+--- !u!1 &1630089690
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1630089691}
+  - component: {fileID: 1630089694}
+  - component: {fileID: 1630089693}
+  - component: {fileID: 1630089692}
+  m_Layer: 0
+  m_Name: Bottle_Model
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1630089691
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1630089690}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 0.35, y: 0.9, z: 0.35}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1053344444}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!136 &1630089692
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1630089690}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5000001
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
+--- !u!23 &1630089693
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1630089690}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &1630089694
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1630089690}
+  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1679957710
 GameObject:
   m_ObjectHideFlags: 0
@@ -2565,6 +2858,7 @@ GameObject:
   - component: {fileID: 1704188193}
   - component: {fileID: 1704188192}
   - component: {fileID: 1704188199}
+  - component: {fileID: 1704188200}
   m_Layer: 0
   m_Name: Jigger_Test
   m_TagString: Untagged
@@ -2686,6 +2980,148 @@ MonoBehaviour:
   tiltAngle: 18
   tiltSpeed: 8
   enableTilt: 1
+--- !u!114 &1704188200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1704188191}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1192d5d0a3c073142beb98543d348c30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.Flair.FlairableTool
+  visualRoot: {fileID: 0}
+  enableFlair: 1
+  actions:
+  - actionName: JiggerSpinBasic
+    gestureType: 1
+    requiredTemplateId: 
+    animationTrigger: 
+    testAnimationType: 1
+    duration: 0.5
+    spinDegrees: 360
+    spinAxis: {x: 0, y: 0, z: 1}
+    shakeDistance: 0.08
+    shakeCount: 4
+    popUpHeight: 0.25
+    requiresQTE: 0
+    canFail: 0
+--- !u!1 &1715488517
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1715488518}
+  - component: {fileID: 1715488521}
+  - component: {fileID: 1715488520}
+  - component: {fileID: 1715488519}
+  m_Layer: 0
+  m_Name: Bottle_Model
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1715488518
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1715488517}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 0.35, y: 0.9, z: 0.35}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 941149322}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!136 &1715488519
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1715488517}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5000001
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
+--- !u!23 &1715488520
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1715488517}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &1715488521
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1715488517}
+  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1747195220
 GameObject:
   m_ObjectHideFlags: 0
@@ -3136,7 +3572,7 @@ SceneRoots:
   - {fileID: 1139248534}
   - {fileID: 1279254635}
   - {fileID: 1230188736}
-  - {fileID: 172597108}
+  - {fileID: 837258952}
   - {fileID: 648440287}
   - {fileID: 1747195223}
   - {fileID: 1704188198}
