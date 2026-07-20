@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CupPrototype.UI;
 using UnityEngine;
 
 namespace CupPrototype.DrinkSystem
@@ -134,6 +135,7 @@ namespace CupPrototype.DrinkSystem
                     Debug.Log("[DrinkContainer] Jigger can only hold one ingredient at a time.", this);
                 }
 
+                ShowMessage("Jigger cannot mix ingredients");
                 return;
             }
 
@@ -144,6 +146,7 @@ namespace CupPrototype.DrinkSystem
                     Debug.Log($"{DisplayName} is full. Cannot add {ingredient.ingredientName}. Volume: {currentVolume:0.##}/{maxVolume:0.##}", this);
                 }
 
+                ShowMessage("Container is full");
                 return;
             }
 
@@ -200,6 +203,7 @@ namespace CupPrototype.DrinkSystem
                 !target.CanAcceptIngredient(singleTransferIngredient)))
             {
                 Debug.Log("[DrinkContainer] Cannot transfer mixed or different ingredient content into Jigger.", target);
+                ShowMessage("Jigger cannot mix ingredients");
                 return false;
             }
 
@@ -435,6 +439,7 @@ namespace CupPrototype.DrinkSystem
                     Debug.Log("[DrinkContainer] Jigger can only hold one ingredient at a time.", this);
                 }
 
+                ShowMessage("Jigger cannot mix ingredients");
                 return;
             }
 
@@ -563,6 +568,14 @@ namespace CupPrototype.DrinkSystem
                 currentColor = previousVolume <= 0f
                     ? entry.ingredient.displayColor
                     : Color.Lerp(currentColor, entry.ingredient.displayColor, entry.amount / currentVolume);
+            }
+        }
+
+        private static void ShowMessage(string message)
+        {
+            if (DemoMessagePanel.Instance != null)
+            {
+                DemoMessagePanel.Instance.ShowMessage(message);
             }
         }
     }

@@ -14,6 +14,12 @@ namespace CupPrototype.Flair
         // 是否允许该工具触发花式。
         public bool enableFlair = true;
 
+        // 当前工具在花式系统中的分类，用于限制模板动作，不等同于 DrinkContainer.ContainerType。
+        public FlairToolType toolType = FlairToolType.Any;
+
+        // 有精确 templateId 但本工具未配置对应动作时，是否允许退回通用 gestureType 动作。
+        public bool allowGestureTypeFallback = true;
+
         // 该工具可用花式列表；每一条都是“手势到花式动作”的配置项。
         public List<FlairActionDefinition> actions = new List<FlairActionDefinition>();
 
@@ -30,7 +36,6 @@ namespace CupPrototype.Flair
         {
             if (visualRoot == null)
             {
-                // visualRoot 用于播放花式演出，避免影响根对象 Collider / Rigidbody。
                 visualRoot = transform.Find("VisualRoot");
                 if (visualRoot != null)
                 {
@@ -85,10 +90,15 @@ namespace CupPrototype.Flair
                 {
                     Debug.LogWarning($"[FlairableTool] Duplicate gesture in action book: {action.gestureType}", this);
                 }
+
+                if (!ToolTypeMatches(action))
+                {
+                    Debug.LogWarning($"[FlairableTool] Action {action.actionName} requires {action.requiredToolType}, but {name} is {toolType}.", this);
+                }
             }
         }
 
-        // 从动作簿里查找指定手势对应的花式动作。
+        // 从动作簿里查找指定通用手势对应的花式动作。
         public bool TryGetAction(FlairGestureType gesture, out FlairActionDefinition action)
         {
             action = null;
@@ -101,7 +111,8 @@ namespace CupPrototype.Flair
             {
                 if (actions[i] != null &&
                     string.IsNullOrEmpty(actions[i].requiredTemplateId) &&
-                    actions[i].gestureType == gesture)
+                    actions[i].gestureType == gesture &&
+                    ToolTypeMatches(actions[i]))
                 {
                     action = actions[i];
                     return true;
@@ -111,10 +122,16 @@ namespace CupPrototype.Flair
             return false;
         }
 
-        // 动作簿查找优先级：templateId 精确匹配优先，找不到再用 gestureType 通用匹配。
         public bool TryGetAction(GestureMatchResult match, out FlairActionDefinition action)
         {
+            return TryGetAction(match, out action, out _);
+        }
+
+        // 动作簿查找唯一入口：先精确 templateId，再按配置决定是否 fallback 到 gestureType。
+        public bool TryGetAction(GestureMatchResult match, out FlairActionDefinition action, out string matchMode)
+        {
             action = null;
+            matchMode = "NoMatch";
             if (!enableFlair || !match.isMatched)
             {
                 return false;
@@ -125,12 +142,21 @@ namespace CupPrototype.Flair
                 FlairActionDefinition candidate = actions[i];
                 if (candidate != null &&
                     !string.IsNullOrEmpty(candidate.requiredTemplateId) &&
-                    candidate.requiredTemplateId == match.templateId)
+                    candidate.requiredTemplateId == match.templateId &&
+                    ToolTypeMatches(candidate))
                 {
                     action = candidate;
+                    matchMode = "TemplateId";
                     Debug.Log($"[FlairableTool] Matched action by templateId: {match.templateId} -> {action.actionName}", this);
                     return true;
                 }
+            }
+
+            if (!allowGestureTypeFallback && !string.IsNullOrEmpty(match.templateId))
+            {
+                matchMode = "FallbackDisabled";
+                Debug.Log($"[FlairableTool] Fallback disabled on {name} for template: {match.templateId}", this);
+                return false;
             }
 
             for (int i = 0; i < actions.Count; i++)
@@ -138,15 +164,26 @@ namespace CupPrototype.Flair
                 FlairActionDefinition candidate = actions[i];
                 if (candidate != null &&
                     string.IsNullOrEmpty(candidate.requiredTemplateId) &&
-                    candidate.gestureType == match.gestureType)
+                    candidate.gestureType == match.gestureType &&
+                    ToolTypeMatches(candidate))
                 {
                     action = candidate;
+                    matchMode = "GestureTypeFallback";
                     Debug.Log($"[FlairableTool] Matched action by gestureType: {match.gestureType} -> {action.actionName}", this);
                     return true;
                 }
             }
 
+            matchMode = "NoAction";
             return false;
+        }
+
+        // 检查动作的工具限制是否允许当前工具触发。
+        private bool ToolTypeMatches(FlairActionDefinition action)
+        {
+            return action == null ||
+                action.requiredToolType == FlairToolType.Any ||
+                action.requiredToolType == toolType;
         }
 
         // 根据动作簿记录播放临时代码动画，不改数据、不改根对象、不走正式 Animator。
@@ -224,28 +261,22 @@ namespace CupPrototype.Flair
                 switch (action.testAnimationType)
                 {
                     case FlairTestAnimationType.Spin:
-                        // Spin：动作簿绑定的 Bottle 测试旋转；模型轴向不明显时可调 spinAxis。
                         visualRoot.localRotation = activeRoutineStartRotation * Quaternion.AngleAxis(action.spinDegrees * t, spinAxis);
                         break;
                     case FlairTestAnimationType.Flip:
-                        // Flip：动作簿绑定的 Jigger 测试翻转，未来可改用 animationTrigger。
                         visualRoot.localRotation = activeRoutineStartRotation * Quaternion.AngleAxis(action.spinDegrees * t, Vector3.right);
                         break;
                     case FlairTestAnimationType.Roll:
-                        // Roll：动作簿绑定的 Shaker 测试滚动，未来可改用 animationTrigger。
                         visualRoot.localRotation = activeRoutineStartRotation * Quaternion.AngleAxis(action.spinDegrees * t, Vector3.forward);
                         break;
                     case FlairTestAnimationType.Shake:
-                        // Shake：动作簿绑定的快速晃动，只移动 visualRoot。
                         visualRoot.localPosition = activeRoutineStartPosition + Vector3.right * (Mathf.Sin(t * shakeCount * Mathf.PI * 2f) * action.shakeDistance);
                         break;
                     case FlairTestAnimationType.Swirl:
-                        // Swirl：Cup 也可以通过动作簿绑定自己的绕圈晃动。
                         float angle = action.spinDegrees * t * Mathf.Deg2Rad;
                         visualRoot.localPosition = activeRoutineStartPosition + new Vector3(Mathf.Sin(angle), 0f, 1f - Mathf.Cos(angle)) * action.shakeDistance;
                         break;
                     case FlairTestAnimationType.PopUp:
-                        // PopUp：FlickUp 动作簿测试动画，只上抬 visualRoot，不做真实物理抛接。
                         float popT = t <= 0.5f ? t * 2f : (1f - t) * 2f;
                         visualRoot.localPosition = activeRoutineStartPosition + Vector3.up * (action.popUpHeight * popT);
                         break;

@@ -1,5 +1,7 @@
 using CupPrototype.Interaction;
 using CupPrototype.Flair;
+using CupPrototype.Game;
+using CupPrototype.Scoring;
 using CupPrototype.UI;
 using System;
 using System.Text;
@@ -29,6 +31,7 @@ namespace CupPrototype.DrinkSystem
         [SerializeField] private float raycastDistance = 1000f;
         [SerializeField] private TargetDrinkData targetDrink;
         [SerializeField] private DrinkDebugUI debugUI;
+        [SerializeField] private DemoRoundManager demoRoundManager;
         // scoringContainer 用于在多容器场景中明确指定按 F 评分的最终杯。
         public DrinkContainer scoringContainer;
         // defaultTransferRatePerSecond 是普通容器之间的持续转移速度。
@@ -66,6 +69,11 @@ namespace CupPrototype.DrinkSystem
             if (targetCamera == null)
             {
                 targetCamera = Camera.main;
+            }
+
+            if (demoRoundManager == null)
+            {
+                demoRoundManager = FindAnyObjectByType<DemoRoundManager>();
             }
         }
 
@@ -208,6 +216,7 @@ namespace CupPrototype.DrinkSystem
 
                 if (selectedIngredient == null)
                 {
+                    ShowMessage("No source selected");
                     return;
                 }
 
@@ -312,6 +321,7 @@ namespace CupPrototype.DrinkSystem
 
             if (!drinkContainer.CanAdd(0.001f))
             {
+                ShowMessage("Container is full");
                 StopIngredientPour();
                 return;
             }
@@ -357,6 +367,7 @@ namespace CupPrototype.DrinkSystem
 
             if (targetContainer.IsFull())
             {
+                ShowMessage("Container is full");
                 StopContainerTransfer();
                 return;
             }
@@ -395,6 +406,7 @@ namespace CupPrototype.DrinkSystem
         {
             if (selectedIngredient == null || targetContainer == null)
             {
+                ShowMessage("No ingredient selected");
                 return;
             }
 
@@ -459,6 +471,11 @@ namespace CupPrototype.DrinkSystem
             }
 
             bool transferred = selectedSourceContainer.TransferTo(targetContainer, amount);
+            if (!transferred)
+            {
+                ShowMessage("Transfer failed");
+            }
+
             if (transferred && debugUI != null)
             {
                 debugUI.SetVolume(targetContainer.DisplayName, targetContainer.CurrentVolume, targetContainer.MaxVolume);
@@ -582,6 +599,7 @@ namespace CupPrototype.DrinkSystem
             }
 
             Debug.Log("Please select an ingredient first.", context);
+            ShowMessage("No ingredient selected");
             promptedMissingIngredientThisPress = true;
         }
 
@@ -702,6 +720,7 @@ namespace CupPrototype.DrinkSystem
             if (targetDrink == null)
             {
                 Debug.Log("Please assign a Target Drink in DrinkTestManager.", this);
+                ShowMessage("No target drink assigned");
                 return;
             }
 
@@ -709,12 +728,14 @@ namespace CupPrototype.DrinkSystem
             if (drinkContainer == null)
             {
                 Debug.Log("No DrinkContainer found in the scene.", this);
+                ShowMessage("No scoring container found");
                 return;
             }
 
             Debug.Log($"[DrinkTestManager] Scoring container: {drinkContainer.DisplayName}, MixState={drinkContainer.mixState}, Ingredients: {drinkContainer.GetIngredientDebugString()}", drinkContainer);
 
             DrinkScoreResult scoreResult = DrinkScoreSystem.ScoreDrink(drinkContainer, targetDrink);
+            string scoreSummary = DrinkScoreFeedbackFormatter.Format(scoreResult);
             Debug.Log($"[DrinkTestManager] Preparation: {targetDrink.requiredPreparation}, Matched={scoreResult.preparationMatched}, Feedback={scoreResult.preparationFeedback}", drinkContainer);
 
             string missingIngredients = scoreResult.missingRequiredIngredients.Count > 0
@@ -735,6 +756,11 @@ namespace CupPrototype.DrinkSystem
             if (debugUI != null)
             {
                 debugUI.SetScoreResult(scoreResult);
+            }
+
+            if (demoRoundManager != null)
+            {
+                demoRoundManager.ShowScoreSummary(scoreSummary);
             }
         }
 
@@ -826,6 +852,25 @@ namespace CupPrototype.DrinkSystem
                 debugUI.SetVolume(0f, 0f);
                 debugUI.SetTasteFeedback("None");
                 debugUI.SetScoreResult(null);
+            }
+
+            // 场景组件可能在 Inspector 绑定之后新增，按 R 时补查并最后写回回合状态。
+            if (demoRoundManager == null)
+            {
+                demoRoundManager = FindAnyObjectByType<DemoRoundManager>();
+            }
+
+            if (demoRoundManager != null)
+            {
+                demoRoundManager.ResetRound();
+            }
+        }
+
+        private void ShowMessage(string message)
+        {
+            if (DemoMessagePanel.Instance != null)
+            {
+                DemoMessagePanel.Instance.ShowMessage(message);
             }
         }
 

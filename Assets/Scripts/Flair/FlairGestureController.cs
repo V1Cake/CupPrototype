@@ -1,32 +1,25 @@
+using CupPrototype.UI;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace CupPrototype.Flair
 {
-    // 挂在 GameManager 上，负责记录 Space + 鼠标左键轨迹、识别手势并触发工具花式。
+    // 挂在 GameManager 上，负责记录 Space + 鼠标轨迹、识别手势并触发工具花式。
     [DefaultExecutionOrder(-1000)]
     public class FlairGestureController : MonoBehaviour
     {
-        // 全局花式输入状态：让倒入、转移、拖拽系统知道花式模式正在接管鼠标输入。
+        // 全局花式输入状态：让倒入、转移、拖拽系统暂停响应鼠标输入。
         public static bool IsFlairInputActive { get; private set; }
 
         // 全局花式播放状态：花式动画期间其它输入系统暂停响应。
         public static bool IsFlairPlaying { get; private set; }
 
-        // 用于从鼠标位置发射射线；为空时自动使用 Camera.main。
         public Camera mainCamera;
-
-        // 按住该键时才进入花式手势识别。
         public KeyCode flairModifierKey = KeyCode.Space;
-
-        // 可命中工具的交互层。
         public LayerMask interactableMask = ~0;
-
-        // 是否输出识别和动作日志。
         public bool debugLogs = true;
-
-        // 运行时手势模板库；玩家轨迹会和这里的开发者模板匹配。
         public GestureTemplateLibrary templateLibrary;
+        public FlairGestureDebugPanel debugPanel;
 
         private FlairableTool activeTool;
         private List<Vector2> recordedPoints;
@@ -121,40 +114,89 @@ namespace CupPrototype.Flair
             isRecording = false;
             IsFlairInputActive = false;
 
+            bool hasTemplates = templateLibrary != null && templateLibrary.GetTemplates().Count > 0;
             GestureMatchResult match = recognizer.RecognizeDetailed(recordedPoints);
+            FlairGestureDebugInfo debugInfo = new FlairGestureDebugInfo
+            {
+                hasResult = match.isMatched,
+                activeToolName = activeTool != null ? activeTool.name : "None",
+                templateId = match.templateId,
+                gestureType = match.gestureType,
+                distance = match.distance,
+                matchMode = match.isMatched ? "NoAction" : "NoMatch",
+                failureReason = match.isMatched ? string.Empty : (hasTemplates ? "No matching template" : "No gesture templates")
+            };
+
             if (!match.isMatched)
             {
-                // 识别失败只结束花式输入，不修改材料、容器或普通游戏数据。
                 if (debugLogs)
                 {
                     Debug.Log("[FlairGestureController] Gesture not recognized.", this);
                 }
+
+                ShowMessage(hasTemplates ? "No gesture template matched" : "No gesture templates");
             }
             else if (debugLogs)
             {
-                Debug.Log($"[FlairGestureController] Recognized: {match.gestureType}, Template={match.templateId}", this);
+                Debug.Log($"[FlairGestureController] Recognized: {match.gestureType}, Template={match.templateId}, Distance={match.distance:0.00}", this);
             }
 
             if (match.isMatched)
             {
+                string matchMode = "NoAction";
                 if (activeTool != null &&
-                    activeTool.TryGetAction(match, out FlairActionDefinition action))
+                    activeTool.TryGetAction(match, out FlairActionDefinition action, out matchMode))
                 {
+                    debugInfo.actionName = action.actionName;
+                    debugInfo.matchMode = matchMode;
                     if (debugLogs)
                     {
-                        Debug.Log($"[FlairGestureController] Action: {action.actionName}", activeTool);
+                        Debug.Log($"[FlairGestureController] Action: {action.actionName}, Mode: {matchMode}", activeTool);
                     }
 
                     activeTool.PlayFlair(action);
                 }
-                else if (debugLogs)
+                else
                 {
-                    Debug.Log($"[FlairGestureController] No action configured for template {match.templateId} or gesture {match.gestureType}", activeTool != null ? activeTool : this);
+                    string failureReason = matchMode == "FallbackDisabled"
+                        ? "Fallback disabled"
+                        : "No action configured";
+
+                    debugInfo.matchMode = matchMode;
+                    debugInfo.failureReason = failureReason;
+                    ShowMessage(failureReason);
+
+                    if (debugLogs)
+                    {
+                        Debug.Log($"[FlairGestureController] {failureReason} for template {match.templateId} or gesture {match.gestureType}", activeTool != null ? (Object)activeTool : this);
+                    }
                 }
             }
 
+            ShowDebugInfo(debugInfo);
             activeTool = null;
             recordedPoints.Clear();
+        }
+
+        private void ShowDebugInfo(FlairGestureDebugInfo info)
+        {
+            FlairGestureDebugPanel panel = debugPanel != null ? debugPanel : FlairGestureDebugPanel.Instance;
+            if (panel != null)
+            {
+                panel.Show(info);
+            }
+            else if (debugLogs)
+            {
+                Debug.Log($"[FlairGestureController] Mode={info.matchMode}, Failure={info.failureReason}", this);
+            }
+        }
+
+        private void ShowMessage(string message)
+        {
+            if (DemoMessagePanel.Instance != null)
+            {
+                DemoMessagePanel.Instance.ShowMessage(message);
+            }
         }
 
         private bool TryGetToolUnderMouse(out FlairableTool tool)

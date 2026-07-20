@@ -77,7 +77,9 @@ namespace CupPrototype.Flair
                 return;
             }
 
-            string templateId = $"{templateIdPrefix}_{templateCounter}";
+            // Inspector 前缀为空时使用 DevTemplate，依次生成 DevTemplate_0、DevTemplate_1 等稳定 ID。
+            string safePrefix = string.IsNullOrWhiteSpace(templateIdPrefix) ? "DevTemplate" : templateIdPrefix.Trim();
+            string templateId = $"{safePrefix}_{templateCounter}";
             GestureTemplateData template = new GestureTemplateData
             {
                 templateId = templateId,

@@ -1,4 +1,5 @@
 using CupPrototype.DrinkSystem;
+using CupPrototype.Scoring;
 using TMPro;
 using UnityEngine;
 
@@ -88,18 +89,7 @@ namespace CupPrototype.UI
                 return;
             }
 
-            string missingIngredients = result.missingRequiredIngredients != null && result.missingRequiredIngredients.Count > 0
-                ? string.Join(", ", result.missingRequiredIngredients)
-                : "None";
-
-            scoreText.text =
-                $"Score: {result.totalScore:0.0}/100\n" +
-                $"Flavor: {result.flavorScore:0.0}/60\n" +
-                $"Volume: {result.volumeScore:0.0}/20\n" +
-                $"Ingredient: {result.ingredientScore:0.0}/20\n" +
-                $"Missing: {missingIngredients}\n" +
-                $"Prep: {result.preparationFeedback}\n" +
-                $"Feedback: {result.feedbackText}";
+            scoreText.text = DrinkScoreFeedbackFormatter.Format(result);
         }
 
         // ===== 转移源容器显示 =====
