@@ -10,20 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3c1615ac817c10c498e7e37075c80ebf, type: 3}
-  m_Name: LemonSweet_Test
+  m_Name: AromaBody_Test
   m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.DrinkSystem.TargetDrinkData
   drinkName: Lemon Sweet Test
   targetVolume: 100
   volumeTolerance: 10
   targetFlavor:
-    sourness: 5
-    sweetness: 4.6
-    bitterness: 0.3
-    freshness: 4.4
-    body: 2.6
-    aroma: 2.9
+    sourness: 0.5
+    sweetness: 2.2
+    bitterness: 1.3
+    freshness: 2.9
+    body: 6.2
+    aroma: 7
   flavorTolerance: 1
   requiredIngredients:
-  - {fileID: 11400000, guid: b59588db75f91394193b06a16c550220, type: 2}
-  - {fileID: 11400000, guid: 77bf3eb5ac44bb342ace0435e29aea87, type: 2}
-  requiredPreparation: 2
+  - {fileID: 11400000, guid: e616849620847794aaff984bac2dbfbc, type: 2}
+  - {fileID: 11400000, guid: 3f84a39d1ac16de46a2f87b6b9c86040, type: 2}
+  requiredPreparation: 1

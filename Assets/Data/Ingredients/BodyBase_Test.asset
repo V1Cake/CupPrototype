@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e8083cada94dd2c439a2b1672fb6087f, type: 3}
-  m_Name: Red_Test
+  m_Name: BodyBase_Test
   m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.DrinkSystem.IngredientData
-  ingredientName: 
-  displayColor: {r: 1, g: 0, b: 0, a: 1}
-  sourness: 0
-  sweetness: 0
-  bitterness: 0
-  freshness: 0
-  body: 0
-  aroma: 0
+  ingredientName: BodyBase_Test
+  displayColor: {r: 0.7882353, g: 0.5372549, b: 0.35686275, a: 1}
+  sourness: 0.5
+  sweetness: 2.5
+  bitterness: 1
+  freshness: 1.5
+  body: 9.5
+  aroma: 4

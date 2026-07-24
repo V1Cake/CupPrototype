@@ -79,6 +79,8 @@ namespace CupPrototype.UI
             builder.AppendLine("T: taste");
             builder.AppendLine("F: score");
             builder.AppendLine("R: reset");
+            builder.AppendLine("1/2/3: select order");
+            builder.AppendLine("N: next order");
             builder.AppendLine("C: debug");
             builder.AppendLine("Space + mouse: flair gesture");
             if (showDeveloperControls)

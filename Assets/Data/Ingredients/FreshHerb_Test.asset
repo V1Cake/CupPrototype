@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e8083cada94dd2c439a2b1672fb6087f, type: 3}
-  m_Name: LemonJuice
+  m_Name: FreshHerb_Test
   m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.DrinkSystem.IngredientData
-  ingredientName: LemonJuice
-  displayColor: {r: 1, g: 0.96159023, b: 0.46226406, a: 1}
-  sourness: 8
-  sweetness: 1
-  bitterness: 0
-  freshness: 7
-  body: 1
-  aroma: 4
+  ingredientName: FreshHerb_Test
+  displayColor: {r: 0.37254903, g: 0.68235296, b: 0.37254903, a: 1}
+  sourness: 0.5
+  sweetness: 0.5
+  bitterness: 2.5
+  freshness: 9
+  body: 1.5
+  aroma: 7.5

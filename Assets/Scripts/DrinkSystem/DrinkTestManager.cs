@@ -60,6 +60,8 @@ namespace CupPrototype.DrinkSystem
         // ===== 给 DragController 查询的全局选择状态 =====
         // 有材料选中时，杯子左键优先用于倒入；没有材料时杯子可以拖动。
         public static bool HasSelectedIngredient { get; private set; }
+        // 供外部验证 F 评分当前实际使用的目标引用。
+        public TargetDrinkData CurrentTarget => targetDrink;
 
         // ===== 生命周期：初始化相机和静态状态 =====
         private void Awake()
@@ -527,6 +529,19 @@ namespace CupPrototype.DrinkSystem
             SetInputMode(selectedIngredient != null ? InputMode.IngredientSelected : InputMode.Idle);
         }
 
+        // 由 DemoRoundManager 统一更新评分目标，并清除不再属于当前订单的旧反馈。
+        public void SetTargetDrink(TargetDrinkData target)
+        {
+            targetDrink = target;
+            ClearPreviousFeedback();
+        }
+
+        // 目标切换时复用 R 的完整清空流程，但由调用方统一写入新回合状态。
+        public void ResetForTargetSwitch()
+        {
+            ResetCurrentDrink(false);
+        }
+
         private void StartSelectedIngredientTilt(DrinkContainer targetContainer)
         {
             PourTiltFeedback tiltFeedback = currentSelectedIngredient != null
@@ -816,6 +831,12 @@ namespace CupPrototype.DrinkSystem
         // 同时重置输入状态和材料高亮，避免旧选择影响下一轮流程测试。
         private void ClearCurrentDrink()
         {
+            ResetCurrentDrink(true);
+        }
+
+        // R 与目标切换共用的唯一重置流程，避免复制容器、选择和倒入状态清理逻辑。
+        private void ResetCurrentDrink(bool resetRoundState)
+        {
             StopActiveIngredientTilt();
             StopSelectedSourceTilt();
 
@@ -823,7 +844,6 @@ namespace CupPrototype.DrinkSystem
             if (containers.Length == 0)
             {
                 Debug.Log("No DrinkContainer found in the scene.", this);
-                return;
             }
 
             foreach (DrinkContainer container in containers)
@@ -844,25 +864,39 @@ namespace CupPrototype.DrinkSystem
             SetInputMode(InputMode.Idle);
 
             Debug.Log("[DrinkTestManager] Cleared all containers.", this);
+            ClearPreviousFeedback();
 
             if (debugUI != null)
             {
                 debugUI.SetSelectedIngredient("None");
                 debugUI.SetTransferSource("None");
                 debugUI.SetVolume(0f, 0f);
-                debugUI.SetTasteFeedback("None");
-                debugUI.SetScoreResult(null);
             }
 
             // 场景组件可能在 Inspector 绑定之后新增，按 R 时补查并最后写回回合状态。
-            if (demoRoundManager == null)
+            if (resetRoundState && demoRoundManager == null)
             {
                 demoRoundManager = FindAnyObjectByType<DemoRoundManager>();
             }
 
-            if (demoRoundManager != null)
+            if (resetRoundState && demoRoundManager != null)
             {
                 demoRoundManager.ResetRound();
+            }
+        }
+
+        // 清除上一目标的评分、试味反馈和屏幕错误提示。
+        private void ClearPreviousFeedback()
+        {
+            if (debugUI != null)
+            {
+                debugUI.SetTasteFeedback("None");
+                debugUI.SetScoreResult(null);
+            }
+
+            if (DemoMessagePanel.Instance != null)
+            {
+                DemoMessagePanel.Instance.ClearMessage();
             }
         }
 
