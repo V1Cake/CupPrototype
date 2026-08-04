@@ -1,4 +1,5 @@
 using CupPrototype.Interaction;
+using CupPrototype.Game;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -22,6 +23,8 @@ namespace CupPrototype.Flair
 
         // 该工具可用花式列表；每一条都是“手势到花式动作”的配置项。
         public List<FlairActionDefinition> actions = new List<FlairActionDefinition>();
+        // 仅在开发者模式输出自动绑定、匹配和播放成功信息；Warning 始终保留。
+        public bool debugLogs = true;
 
         // 防止同一工具在花式动画未结束时重复播放。
         public bool IsPlayingFlair { get; private set; }
@@ -39,7 +42,10 @@ namespace CupPrototype.Flair
                 visualRoot = transform.Find("VisualRoot");
                 if (visualRoot != null)
                 {
-                    Debug.Log($"[FlairableTool] Auto-bound VisualRoot on {name}", this);
+                    if (debugLogs && DemoModeController.DeveloperModeActive)
+                    {
+                        Debug.Log($"[FlairableTool] Auto-bound VisualRoot on {name}", this);
+                    }
                 }
                 else
                 {
@@ -67,7 +73,6 @@ namespace CupPrototype.Flair
                 return;
             }
 
-            HashSet<FlairGestureType> usedGestures = new HashSet<FlairGestureType>();
             for (int i = 0; i < actions.Count; i++)
             {
                 FlairActionDefinition action = actions[i];
@@ -86,9 +91,14 @@ namespace CupPrototype.Flair
                     Debug.LogWarning($"[FlairableTool] Action book entry {i} has empty actionName on {name}", this);
                 }
 
-                if (action.gestureType != FlairGestureType.None && !usedGestures.Add(action.gestureType))
+                // 手势、模板 ID、工具类型三项完全一致才算重复；通用动作与精确模板动作可共存。
+                if (HasDuplicateConditionBefore(i))
                 {
-                    Debug.LogWarning($"[FlairableTool] Duplicate gesture in action book: {action.gestureType}", this);
+                    string templateId = NormalizeTemplateId(action.requiredTemplateId);
+                    Debug.LogWarning(
+                        $"[FlairableTool] Duplicate action condition on {name}: Gesture={action.gestureType}, " +
+                        $"Template={(templateId.Length == 0 ? "<empty>" : templateId)}, Tool={action.requiredToolType}",
+                        this);
                 }
 
                 if (!ToolTypeMatches(action))
@@ -96,6 +106,34 @@ namespace CupPrototype.Flair
                     Debug.LogWarning($"[FlairableTool] Action {action.actionName} requires {action.requiredToolType}, but {name} is {toolType}.", this);
                 }
             }
+        }
+
+        // 只检查当前项之前的配置，保证每组真正重复的条件仅警告一次。
+        private bool HasDuplicateConditionBefore(int actionIndex)
+        {
+            FlairActionDefinition action = actions[actionIndex];
+            string templateId = NormalizeTemplateId(action.requiredTemplateId);
+
+            // ponytail: 动作簿条目很少，保持 O(n²) 直观比较；数量显著增长时再改为 HashSet 键。
+            for (int i = 0; i < actionIndex; i++)
+            {
+                FlairActionDefinition previous = actions[i];
+                if (previous != null &&
+                    previous.gestureType == action.gestureType &&
+                    previous.requiredToolType == action.requiredToolType &&
+                    string.Equals(NormalizeTemplateId(previous.requiredTemplateId), templateId, System.StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // null、空字符串和纯空格统一为空，其余模板 ID 仅去除首尾空格并按大小写精确比较。
+        private static string NormalizeTemplateId(string templateId)
+        {
+            return string.IsNullOrWhiteSpace(templateId) ? string.Empty : templateId.Trim();
         }
 
         // 从动作簿里查找指定通用手势对应的花式动作。
@@ -147,7 +185,7 @@ namespace CupPrototype.Flair
                 {
                     action = candidate;
                     matchMode = "TemplateId";
-                    Debug.Log($"[FlairableTool] Matched action by templateId: {match.templateId} -> {action.actionName}", this);
+                    LogDebug($"[FlairableTool] Matched action by templateId: {match.templateId} -> {action.actionName}");
                     return true;
                 }
             }
@@ -155,7 +193,7 @@ namespace CupPrototype.Flair
             if (!allowGestureTypeFallback && !string.IsNullOrEmpty(match.templateId))
             {
                 matchMode = "FallbackDisabled";
-                Debug.Log($"[FlairableTool] Fallback disabled on {name} for template: {match.templateId}", this);
+                LogDebug($"[FlairableTool] Fallback disabled on {name} for template: {match.templateId}");
                 return false;
             }
 
@@ -169,7 +207,7 @@ namespace CupPrototype.Flair
                 {
                     action = candidate;
                     matchMode = "GestureTypeFallback";
-                    Debug.Log($"[FlairableTool] Matched action by gestureType: {match.gestureType} -> {action.actionName}", this);
+                    LogDebug($"[FlairableTool] Matched action by gestureType: {match.gestureType} -> {action.actionName}");
                     return true;
                 }
             }
@@ -191,7 +229,7 @@ namespace CupPrototype.Flair
         {
             if (IsPlayingFlair)
             {
-                Debug.Log($"[FlairableTool] Flair already playing on {name}", this);
+                LogDebug($"[FlairableTool] Flair already playing on {name}");
                 return;
             }
 
@@ -209,7 +247,7 @@ namespace CupPrototype.Flair
             }
 
             IsPlayingFlair = true;
-            Debug.Log($"[FlairableTool] Playing {action.actionName}: {action.testAnimationType}", this);
+            LogDebug($"[FlairableTool] Playing {action.actionName}: {action.testAnimationType}");
             activeRoutine = StartCoroutine(PlayTestAnimationRoutine(action));
         }
 
@@ -297,6 +335,15 @@ namespace CupPrototype.Flair
             {
                 activeTiltFeedback.enableTilt = previousEnableTilt;
                 activeTiltFeedback = null;
+            }
+        }
+
+        // 普通成功信息必须同时满足 Developer 模式和本组件 debugLogs 开关。
+        private void LogDebug(string message)
+        {
+            if (debugLogs && DemoModeController.DeveloperModeActive)
+            {
+                Debug.Log(message, this);
             }
         }
 

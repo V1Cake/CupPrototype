@@ -67,8 +67,6 @@ namespace CupPrototype.DrinkSystem
         // currentVolume/maxVolume 控制高度，currentColor 控制材质颜色。
         public void UpdateVisual(float currentVolume, float maxVolume, Color currentColor)
         {
-            Debug.Log($"[LiquidVisualController] UpdateVisual called. Volume={currentVolume}/{maxVolume}", this);
-
             if (!initialized)
             {
                 Initialize();

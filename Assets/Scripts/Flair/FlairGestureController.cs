@@ -1,5 +1,6 @@
 using CupPrototype.UI;
 using System.Collections.Generic;
+using CupPrototype.Game;
 using UnityEngine;
 
 namespace CupPrototype.Flair
@@ -129,14 +130,16 @@ namespace CupPrototype.Flair
 
             if (!match.isMatched)
             {
-                if (debugLogs)
+                if (debugLogs && DemoModeController.DeveloperModeActive)
                 {
                     Debug.Log("[FlairGestureController] Gesture not recognized.", this);
                 }
 
-                ShowMessage(hasTemplates ? "No gesture template matched" : "No gesture templates");
+                ShowMessage(DemoModeController.DeveloperModeActive
+                    ? (hasTemplates ? "No gesture template matched" : "No gesture templates")
+                    : "Gesture not recognized");
             }
-            else if (debugLogs)
+            else if (debugLogs && DemoModeController.DeveloperModeActive)
             {
                 Debug.Log($"[FlairGestureController] Recognized: {match.gestureType}, Template={match.templateId}, Distance={match.distance:0.00}", this);
             }
@@ -149,12 +152,16 @@ namespace CupPrototype.Flair
                 {
                     debugInfo.actionName = action.actionName;
                     debugInfo.matchMode = matchMode;
-                    if (debugLogs)
+                    if (debugLogs && DemoModeController.DeveloperModeActive)
                     {
                         Debug.Log($"[FlairGestureController] Action: {action.actionName}, Mode: {matchMode}", activeTool);
                     }
 
                     activeTool.PlayFlair(action);
+                    if (!DemoModeController.DeveloperModeActive)
+                    {
+                        ShowMessage("Flair recognized");
+                    }
                 }
                 else
                 {
@@ -164,9 +171,11 @@ namespace CupPrototype.Flair
 
                     debugInfo.matchMode = matchMode;
                     debugInfo.failureReason = failureReason;
-                    ShowMessage(failureReason);
+                    ShowMessage(DemoModeController.DeveloperModeActive
+                        ? failureReason
+                        : "This gesture is not available for this tool");
 
-                    if (debugLogs)
+                    if (debugLogs && DemoModeController.DeveloperModeActive)
                     {
                         Debug.Log($"[FlairGestureController] {failureReason} for template {match.templateId} or gesture {match.gestureType}", activeTool != null ? (Object)activeTool : this);
                     }
@@ -185,7 +194,7 @@ namespace CupPrototype.Flair
             {
                 panel.Show(info);
             }
-            else if (debugLogs)
+            else if (debugLogs && DemoModeController.DeveloperModeActive)
             {
                 Debug.Log($"[FlairGestureController] Mode={info.matchMode}, Failure={info.failureReason}", this);
             }
@@ -214,7 +223,7 @@ namespace CupPrototype.Flair
                 tool = hit.collider.GetComponentInParent<FlairableTool>();
             }
 
-            if (debugLogs)
+            if (debugLogs && DemoModeController.DeveloperModeActive)
             {
                 string toolName = tool != null ? tool.name : "None";
                 Debug.Log($"[FlairGestureController] Hit: {hit.collider.name}, Tool: {toolName}", this);

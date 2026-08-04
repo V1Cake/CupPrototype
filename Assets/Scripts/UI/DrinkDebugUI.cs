@@ -17,6 +17,9 @@ namespace CupPrototype.UI
         [SerializeField] private TextMeshProUGUI scoreText;
         [SerializeField] private TextMeshProUGUI transferSourceText;
 
+        // Build 验证器只读检查玩家评分文本引用，不修改 UI 绑定。
+        public TextMeshProUGUI ScoreText => scoreText;
+
         // ===== 生命周期：初始化显示 =====
         private void Awake()
         {

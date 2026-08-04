@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using CupPrototype.Game;
+using CupPrototype.Interaction;
 using CupPrototype.UI;
 using UnityEngine;
 
@@ -57,6 +59,10 @@ namespace CupPrototype.DrinkSystem
 
         // ===== 转移日志节流 =====
         private const float TransferLogStep = 10f;
+        public const string ShakerJiggerOnlyMessage = "Shaker only accepts liquid from Jigger.";
+        public const string CupCannotPourMessage = "Cup cannot pour liquid into other containers.";
+        public const string JiggerBottleOnlyMessage = "Jigger only accepts liquid directly from bottles.";
+        [SerializeField] private bool debugLogs = true;
         private float pendingTransferLogAmount;
 
         // ===== 对外只读访问 =====
@@ -81,7 +87,10 @@ namespace CupPrototype.DrinkSystem
 
             if (liquidVisualController != null)
             {
-                Debug.Log($"[DrinkContainer] LiquidVisualController linked on {gameObject.name}", this);
+                if (debugLogs && DemoModeController.DeveloperModeActive)
+                {
+                    Debug.Log($"[DrinkContainer] LiquidVisualController linked on {gameObject.name}", this);
+                }
                 liquidVisualController.Initialize();
                 liquidVisualController.UpdateVisual(currentVolume, maxVolume, currentColor);
             }
@@ -114,6 +123,54 @@ namespace CupPrototype.DrinkSystem
             return GetRemainingVolume() <= 0.001f;
         }
 
+        // 材料瓶直倒属于非法入口：Shaker 只能通过 Jigger 接收液体。
+        // 接收规则放在 DrinkContainer，避免其他输入入口绕过限制。
+        public bool CanReceiveDirectIngredient(out string rejectionReason)
+        {
+            if (containerType == ContainerType.Shaker)
+            {
+                rejectionReason = ShakerJiggerOnlyMessage;
+                return false;
+            }
+
+            rejectionReason = string.Empty;
+            return true;
+        }
+
+        // Jigger 只接收材料瓶直倒；容器转入 Shaker 时只允许 Jigger 来源。
+        // Shaker 作为源向 Cup 转出不受影响，Jigger 的直接倒入仍执行原有单材料校验。
+        public bool CanReceiveFrom(DrinkContainer sourceContainer, out string rejectionReason)
+        {
+            if (sourceContainer == null)
+            {
+                rejectionReason = "Source container is missing.";
+                return false;
+            }
+
+            // Cup 使用 FinalGlass 类型；成品杯只能接收和评分，不能再作为转移源。
+            if (sourceContainer.containerType == ContainerType.FinalGlass)
+            {
+                rejectionReason = CupCannotPourMessage;
+                return false;
+            }
+
+            // 所有容器来源都不能倒回 Jigger，只保留 Bottle -> Jigger 的 AddIngredient 入口。
+            if (containerType == ContainerType.Jigger)
+            {
+                rejectionReason = JiggerBottleOnlyMessage;
+                return false;
+            }
+
+            if (containerType == ContainerType.Shaker && sourceContainer.containerType != ContainerType.Jigger)
+            {
+                rejectionReason = ShakerJiggerOnlyMessage;
+                return false;
+            }
+
+            rejectionReason = string.Empty;
+            return true;
+        }
+
         // ===== 加入材料 =====
         // 处理容量上限、颜色混合、材料记录，并通知液体视觉更新。
         public void AddIngredient(IngredientData ingredient, float amount, bool logResult = true)
@@ -125,6 +182,18 @@ namespace CupPrototype.DrinkSystem
                     Debug.LogWarning("Cannot add ingredient: IngredientData is null.", this);
                 }
 
+                return;
+            }
+
+            // 必须在改变容量、颜色、风味或材料记录前拒绝材料瓶直倒 Shaker。
+            if (!CanReceiveDirectIngredient(out string rejectionReason))
+            {
+                if (logResult)
+                {
+                    Debug.Log($"[DrinkContainer] {rejectionReason}", this);
+                }
+
+                ShowMessage(rejectionReason);
                 return;
             }
 
@@ -158,7 +227,26 @@ namespace CupPrototype.DrinkSystem
         // 按源容器现有材料比例，把指定数量转移到目标容器。
         public bool TransferTo(DrinkContainer target, float amount)
         {
-            if (target == null || target == this || IsEmpty() || target.IsFull() || amount <= 0f)
+            if (target == null || IsEmpty() || target.IsFull() || amount <= 0f)
+            {
+                return false;
+            }
+
+            // 必须在计算和写入任何转移数据前校验来源，防止非 Jigger 绕过 Shaker 入口限制。
+            if (!target.CanReceiveFrom(this, out string rejectionReason))
+            {
+                PourTiltFeedback tiltFeedback = GetComponent<PourTiltFeedback>();
+                if (tiltFeedback != null)
+                {
+                    tiltFeedback.StopTilt();
+                }
+
+                Debug.Log($"[DrinkContainer] Transfer rejected: {rejectionReason}", this);
+                ShowMessage(rejectionReason);
+                return false;
+            }
+
+            if (target == this)
             {
                 return false;
             }
@@ -249,7 +337,8 @@ namespace CupPrototype.DrinkSystem
             UpdateLiquidVisual();
 
             pendingTransferLogAmount += actualAmount;
-            if (pendingTransferLogAmount >= TransferLogStep || IsEmpty())
+            if (debugLogs && DemoModeController.DeveloperModeActive &&
+                (pendingTransferLogAmount >= TransferLogStep || IsEmpty()))
             {
                 Debug.Log($"[DrinkContainer] Transfer {pendingTransferLogAmount:0.##} from {DisplayName} to {target.DisplayName}", this);
                 Debug.Log($"[DrinkContainer] Source {DisplayName} ingredients: {GetIngredientDebugString()}", this);
@@ -457,7 +546,7 @@ namespace CupPrototype.DrinkSystem
             RecalculateFromIngredients();
             UpdateLiquidVisual();
 
-            if (log)
+            if (log && debugLogs && DemoModeController.DeveloperModeActive)
             {
                 Debug.Log($"Added ingredient to {DisplayName}: {ingredient.ingredientName}, Amount: {amount:0.##}, Volume: {currentVolume:0.##}/{maxVolume:0.##}, Color: R={currentColor.r:0.00}, G={currentColor.g:0.00}, B={currentColor.b:0.00}, A={currentColor.a:0.00}", this);
                 Debug.Log($"[DrinkContainer] {DisplayName} ingredients: {GetIngredientDebugString()}", this);
@@ -469,7 +558,6 @@ namespace CupPrototype.DrinkSystem
         {
             if (liquidVisualController != null)
             {
-                Debug.Log($"[DrinkContainer] Updating liquid visual. Volume={currentVolume}/{maxVolume}, Color={currentColor}", this);
                 liquidVisualController.UpdateVisual(currentVolume, maxVolume, currentColor);
             }
             else

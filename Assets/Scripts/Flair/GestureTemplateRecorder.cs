@@ -1,3 +1,4 @@
+using CupPrototype.Game;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -22,6 +23,8 @@ namespace CupPrototype.Flair
         private readonly List<Vector2> recordedPoints = new List<Vector2>();
         private bool isRecording;
         private int templateCounter;
+        // Player 模式下按住 G 时只提示一次，避免每帧刷屏。
+        private bool hasLoggedPlayerModeBlock;
 
         private void Awake()
         {
@@ -40,6 +43,24 @@ namespace CupPrototype.Flair
 
         private void Update()
         {
+            // G 是开发者模板录制入口；Space 玩家手势由 FlairGestureController 独立处理，不受影响。
+            if (!DemoModeController.DeveloperModeActive)
+            {
+                if (isRecording)
+                {
+                    CancelRecording();
+                }
+
+                if (Input.GetKeyDown(recordTemplateKey) && !hasLoggedPlayerModeBlock)
+                {
+                    Debug.Log("[GestureTemplateRecorder] Template recording is disabled in Player Mode.", this);
+                    hasLoggedPlayerModeBlock = true;
+                }
+
+                return;
+            }
+
+            hasLoggedPlayerModeBlock = false;
             if (isRecording && !Input.GetMouseButton(0))
             {
                 FinishRecording();
@@ -55,6 +76,14 @@ namespace CupPrototype.Flair
             {
                 recordedPoints.Add(Input.mousePosition);
             }
+        }
+
+        // 切入 Player 模式时丢弃未完成轨迹，确保不保存资产也不修改运行时模板库。
+        private void CancelRecording()
+        {
+            isRecording = false;
+            IsTemplateRecording = false;
+            recordedPoints.Clear();
         }
 
         private void StartRecording()

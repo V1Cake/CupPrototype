@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CupPrototype.Game;
 using UnityEngine;
 
 namespace CupPrototype.Flair
@@ -8,6 +9,7 @@ namespace CupPrototype.Flair
     {
         // Inspector 中配置的模板资产，Awake 时会逐项校验并加载。
         public List<GestureTemplateAsset> templateAssets = new List<GestureTemplateAsset>();
+        [SerializeField] private bool debugLogs = true;
 
         private readonly List<GestureTemplateData> templates = new List<GestureTemplateData>();
 
@@ -45,7 +47,10 @@ namespace CupPrototype.Flair
             }
 
             templates.Add(template);
-            Debug.Log($"[GestureTemplateLibrary] Added template: {template.templateId}, Type={template.gestureType}", this);
+            if (debugLogs && DemoModeController.DeveloperModeActive)
+            {
+                Debug.Log($"[GestureTemplateLibrary] Added template: {template.templateId}, Type={template.gestureType}", this);
+            }
         }
 
         public IReadOnlyList<GestureTemplateData> GetTemplates()
@@ -120,7 +125,10 @@ namespace CupPrototype.Flair
                 }
 
                 templates.Add(asset.ToRuntimeData());
-                Debug.Log($"[GestureTemplateLibrary] Loaded template asset: {asset.templateId}", this);
+                if (debugLogs && DemoModeController.DeveloperModeActive)
+                {
+                    Debug.Log($"[GestureTemplateLibrary] Loaded template asset: {asset.templateId}", this);
+                }
             }
         }
 

@@ -39,11 +39,13 @@ namespace CupPrototype.Game
         public DemoRoundState State { get; private set; } = DemoRoundState.Ready;
         // 对外只读的当前评分目标。
         public TargetDrinkData CurrentTarget => currentTarget;
+        // 唯一目标列表的只读视图，供 Build 前验证使用，不创建第二份运行时列表。
+        public IReadOnlyList<TargetDrinkData> AvailableTargets => availableTargets;
 
         private void Start()
         {
             ResolveTargetReferences();
-            if (debugLogs)
+            if (debugLogs && DemoModeController.DeveloperModeActive)
             {
                 Debug.Log($"[DemoRoundManager] Available target count: {availableTargets?.Count ?? 0}", this);
             }

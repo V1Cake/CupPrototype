@@ -55,6 +55,8 @@ namespace CupPrototype.DrinkSystem
         private bool isPouring;
         private bool isTransferringContainer;
         private bool promptedMissingIngredientThisPress;
+        // 当前鼠标按住期间只显示一次非法倒入或转移提示，避免 Update 每帧刷屏。
+        private bool hasShownCurrentPourRejection;
         private InputMode currentMode = InputMode.Idle;
 
         // ===== 给 DragController 查询的全局选择状态 =====
@@ -108,16 +110,19 @@ namespace CupPrototype.DrinkSystem
 
             if (Input.GetKeyDown(KeyCode.R))
             {
+                hasShownCurrentPourRejection = false;
                 ClearCurrentDrink();
             }
 
-            if (Input.GetKeyDown(KeyCode.C))
+            // C 仅用于开发者查看容器内部状态；T、F、R 在两个模式下都保持可用。
+            if (DemoModeController.DeveloperModeActive && Input.GetKeyDown(KeyCode.C))
             {
                 PrintAllContainerDebugInfo();
             }
 
             if (Input.GetKeyDown(KeyCode.Escape))
             {
+                hasShownCurrentPourRejection = false;
                 ClearSelectedSourceContainer();
             }
         }
@@ -145,12 +150,14 @@ namespace CupPrototype.DrinkSystem
                 }
 
                 promptedMissingIngredientThisPress = false;
+                hasShownCurrentPourRejection = false;
                 return;
             }
 
             if (Input.GetMouseButtonDown(0))
             {
                 promptedMissingIngredientThisPress = false;
+                hasShownCurrentPourRejection = false;
                 HandleMouseDown();
             }
 
@@ -179,6 +186,7 @@ namespace CupPrototype.DrinkSystem
                 }
 
                 promptedMissingIngredientThisPress = false;
+                hasShownCurrentPourRejection = false;
             }
         }
 
@@ -328,6 +336,14 @@ namespace CupPrototype.DrinkSystem
                 return;
             }
 
+            // 材料瓶直倒 Shaker 必须在 AddIngredient 改变数据前拦截，并停止瓶身倾斜反馈。
+            if (!drinkContainer.CanReceiveDirectIngredient(out string rejectionReason))
+            {
+                ShowPourRejectionOnce($"[DrinkTestManager] {rejectionReason}", rejectionReason, drinkContainer);
+                StopIngredientPour();
+                return;
+            }
+
             if (currentPourContainer != drinkContainer || !isPouring)
             {
                 StartIngredientPour(drinkContainer);
@@ -469,6 +485,17 @@ namespace CupPrototype.DrinkSystem
 
             if (amount <= 0f)
             {
+                return;
+            }
+
+            // 持续和瞬间转移共用此入口；非 Jigger 转入 Shaker 时不调用 TransferTo。
+            if (!targetContainer.CanReceiveFrom(selectedSourceContainer, out string rejectionReason))
+            {
+                ShowPourRejectionOnce(
+                    $"[DrinkContainer] Transfer rejected: {rejectionReason}",
+                    rejectionReason,
+                    selectedSourceContainer);
+                StopContainerTransfer();
                 return;
             }
 
@@ -779,6 +806,19 @@ namespace CupPrototype.DrinkSystem
             }
         }
 
+        // 一次鼠标按住只记录和显示一次拒绝；松开、取消、重置或切换目标后重新允许提示。
+        private void ShowPourRejectionOnce(string consoleMessage, string panelMessage, UnityEngine.Object context)
+        {
+            if (hasShownCurrentPourRejection)
+            {
+                return;
+            }
+
+            Debug.Log(consoleMessage, context);
+            ShowMessage(panelMessage);
+            hasShownCurrentPourRejection = true;
+        }
+
         // ===== 评分容器选择 =====
         // 多容器场景中，优先使用 Inspector 指定的 scoringContainer；
         // 如果未指定，则优先寻找 containerType 为 FinalGlass 的容器，最后才 fallback 到第一个容器。
@@ -837,6 +877,7 @@ namespace CupPrototype.DrinkSystem
         // R 与目标切换共用的唯一重置流程，避免复制容器、选择和倒入状态清理逻辑。
         private void ResetCurrentDrink(bool resetRoundState)
         {
+            hasShownCurrentPourRejection = false;
             StopActiveIngredientTilt();
             StopSelectedSourceTilt();
 

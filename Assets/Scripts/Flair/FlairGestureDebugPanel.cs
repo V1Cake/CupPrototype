@@ -1,3 +1,4 @@
+using CupPrototype.Game;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -31,7 +32,8 @@ namespace CupPrototype.Flair
 
         public void Show(FlairGestureDebugInfo info)
         {
-            if (info == null)
+            // Player 模式隐藏 templateId、distance 和匹配模式等内部识别细节。
+            if (info == null || !DemoModeController.DeveloperModeActive)
             {
                 return;
             }

@@ -1,3 +1,4 @@
+using CupPrototype.Game;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -13,9 +14,11 @@ namespace CupPrototype.UI
         public KeyCode toggleHintKey = KeyCode.H;
 
         private bool isVisible;
+        private bool lastDeveloperMode;
 
         private void Start()
         {
+            lastDeveloperMode = DemoModeController.DeveloperModeActive;
             if (showOnStart)
             {
                 ShowHints();
@@ -28,6 +31,14 @@ namespace CupPrototype.UI
 
         private void Update()
         {
+            // 模式变化后立即刷新同一份 Hint Text，不创建第二个提示面板。
+            bool isDeveloperMode = DemoModeController.DeveloperModeActive;
+            if (isVisible && lastDeveloperMode != isDeveloperMode)
+            {
+                lastDeveloperMode = isDeveloperMode;
+                ShowHints();
+            }
+
             if (Input.GetKeyDown(toggleHintKey))
             {
                 ToggleHints();
@@ -81,11 +92,17 @@ namespace CupPrototype.UI
             builder.AppendLine("R: reset");
             builder.AppendLine("1/2/3: select order");
             builder.AppendLine("N: next order");
-            builder.AppendLine("C: debug");
             builder.AppendLine("Space + mouse: flair gesture");
-            if (showDeveloperControls)
+            // Player 模式不暴露 G、C 等内部调试入口。
+            if (showDeveloperControls && DemoModeController.DeveloperModeActive)
             {
                 builder.AppendLine("G + mouse: record developer gesture template");
+                builder.AppendLine("C: debug");
+            }
+
+            if (DemoModeController.RuntimeToggleAvailable)
+            {
+                builder.AppendLine("F1: toggle player/developer mode");
             }
 
             builder.Append("H: toggle help");
