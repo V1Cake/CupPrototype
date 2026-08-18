@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8083cada94dd2c439a2b1672fb6087f, type: 3}
+  m_Name: Gin
+  m_EditorClassIdentifier: Assembly-CSharp::CupPrototype.DrinkSystem.IngredientData
+  ingredientName: Gin
+  displayColor: {r: 0.5, g: 0.78, b: 0.82, a: 1}
+  sourness: 0.5
+  sweetness: 1.5
+  bitterness: 2
+  freshness: 4.5
+  body: 8
+  aroma: 7
