@@ -97,16 +97,23 @@ namespace CupPrototype.Interaction
                 return;
             }
 
+            DrinkContainer drinkContainer = hit.collider.GetComponentInParent<DrinkContainer>();
+
             // 已选中材料时，杯子点击用于持续倒入，不进入拖拽。
-            if (DrinkTestManager.HasSelectedIngredient &&
-                hit.collider.GetComponentInParent<DrinkContainer>() != null)
+            if (DrinkTestManager.HasSelectedIngredient && drinkContainer != null)
             {
                 return;
             }
 
             currentObject = interactable;
             draggedObjectFixedY = currentObject.transform.position.y;
-            dragPlane = new Plane(Vector3.up, new Vector3(0f, draggedObjectFixedY, 0f));
+
+            // 容器 Root 高度不同，统一使用命中 Collider 中心投影鼠标；实际 Root 的 Y 仍保持不变。
+            float dragPlaneY = drinkContainer != null
+                ? hit.collider.bounds.center.y
+                : draggedObjectFixedY;
+
+            dragPlane = new Plane(Vector3.up, new Vector3(0f, dragPlaneY, 0f));
 
             Debug.Log($"[DragController] Start drag {currentObject.name}, fixedY={draggedObjectFixedY}", currentObject);
 
