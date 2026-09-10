@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using CupPrototype.DrinkSystem;
+using CupPrototype.Flair;
 using UnityEngine;
 
 namespace CupPrototype.Interaction
@@ -15,10 +16,18 @@ namespace CupPrototype.Interaction
         [SerializeField] private GameObject processIceFeedback;
         [SerializeField] private Transform lid;
         [SerializeField] private Vector3 openLidLocalPosition;
+        [SerializeField] private Transform shakePosition;
+        private FlairableTool shakingTool;
         private Vector3 closedLidLocalPosition;
         private Coroutine closing;
         private Action closeCompleted;
-        public bool CanClose => isActiveAndEnabled && State == ShakerState.Preparing && lid && transfer == null && closing == null;
+        private Coroutine opening;
+        private Action openCompleted;
+        public bool CanClose => isActiveAndEnabled && State == ShakerState.Preparing && lid && transfer == null && closing == null && opening == null;
+        public bool CanOpen => isActiveAndEnabled &&
+            (State == ShakerState.ReadyToShake || State == ShakerState.ShakeComplete) &&
+            currentDrinkRecord && !currentDrinkRecord.Tasted && lid && prepPosition &&
+            transfer == null && closing == null && opening == null && !shakingTool;
         public bool ProcessIce => currentDrinkRecord && currentDrinkRecord.ProcessIce;
         private Pose restPose;
         private Coroutine transfer;
@@ -62,6 +71,75 @@ namespace CupPrototype.Interaction
             return true;
         }
 
+        public bool TryShake(FlairableTool tool, FlairActionDefinition action, Action<bool> completed)
+        {
+            if (!isActiveAndEnabled || State != ShakerState.ReadyToShake || shakingTool || opening != null ||
+                !shakePosition || !prepPosition || !currentDrinkRecord || !currentDrinkRecord.isActiveAndEnabled ||
+                !tool || tool.gameObject != gameObject) return false;
+            shakingTool = tool;
+            transform.SetPositionAndRotation(shakePosition.position, shakePosition.rotation);
+            if (tool.TryPlayFlair(action, succeeded =>
+            {
+                shakingTool = null;
+                transform.SetPositionAndRotation(prepPosition.position, prepPosition.rotation);
+                if (succeeded)
+                {
+                    State = ShakerState.ShakeComplete;
+                    currentDrinkRecord.RecordShake();
+                }
+                completed?.Invoke(succeeded);
+            })) return true;
+            shakingTool = null;
+            transform.SetPositionAndRotation(prepPosition.position, prepPosition.rotation);
+            return false;
+        }
+
+        public void CancelShake()
+        {
+            if (shakingTool) shakingTool.CancelFlair();
+        }
+
+        public bool TryOpen(Action completed)
+        {
+            if (!CanOpen) return false;
+            openCompleted = completed;
+            opening = StartCoroutine(Open());
+            return true;
+        }
+
+        private IEnumerator Open()
+        {
+            transform.SetPositionAndRotation(prepPosition.position, prepPosition.rotation);
+            var start = lid.localPosition;
+            for (float elapsed = 0; elapsed < .35f && lid; elapsed += Time.deltaTime)
+            {
+                lid.localPosition = Vector3.Lerp(start, openLidLocalPosition, Mathf.SmoothStep(0, 1, elapsed / .35f));
+                yield return null;
+            }
+            if (lid)
+            {
+                lid.localPosition = openLidLocalPosition;
+                State = ShakerState.Preparing;
+            }
+            FinishOpen();
+        }
+
+        private void FinishOpen()
+        {
+            opening = null;
+            var completed = openCompleted;
+            openCompleted = null;
+            completed?.Invoke();
+        }
+
+        public void CancelOpen()
+        {
+            if (opening == null) return;
+            StopCoroutine(opening);
+            if (lid) lid.localPosition = closedLidLocalPosition;
+            FinishOpen();
+        }
+
         private IEnumerator Close()
         {
             var start = lid.localPosition;
@@ -73,7 +151,8 @@ namespace CupPrototype.Interaction
             if (lid)
             {
                 lid.localPosition = closedLidLocalPosition;
-                State = ShakerState.ReadyToShake;
+                State = currentDrinkRecord && currentDrinkRecord.ShakePerformed
+                    ? ShakerState.ShakeComplete : ShakerState.ReadyToShake;
             }
             closing = null;
             var completed = closeCompleted;
@@ -124,7 +203,11 @@ namespace CupPrototype.Interaction
         {
             yield return MoveJigger(source.transform, jiggerHoldPose, pour);
             if (source && target && source.isActiveAndEnabled && target.isActiveAndEnabled && State == ShakerState.Preparing)
-                source.TransferTo(target, source.CurrentVolume);
+            {
+                float before = target.CurrentVolume;
+                if (source.TransferTo(target, source.CurrentVolume) && target.CurrentVolume > before &&
+                    currentDrinkRecord && currentDrinkRecord.ShakePerformed) currentDrinkRecord.ClearShake();
+            }
             if (source) yield return MoveJigger(source.transform, pour, jiggerHoldPose);
             FinishTransfer();
         }
@@ -156,7 +239,7 @@ namespace CupPrototype.Interaction
             FinishTransfer();
         }
 
-        private void OnDisable() { CancelTransfer(); CancelClose(); }
+        private void OnDisable() { CancelTransfer(); CancelClose(); CancelShake(); CancelOpen(); }
 
         public void ResetAttempt()
         {
@@ -166,6 +249,8 @@ namespace CupPrototype.Interaction
 
         public void ResetToRest()
         {
+            CancelOpen();
+            CancelShake();
             CancelTransfer();
             CancelClose();
             if (lid) lid.localPosition = closedLidLocalPosition;

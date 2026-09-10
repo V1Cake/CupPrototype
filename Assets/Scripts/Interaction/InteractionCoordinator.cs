@@ -15,7 +15,8 @@ namespace CupPrototype.Interaction
         Flair,
         Shake,
         AutoPour,
-        Closing
+        Closing,
+        Opening
     }
 
     [DisallowMultipleComponent]
@@ -38,9 +39,10 @@ namespace CupPrototype.Interaction
         private int consumedFrame = -1;
         private PourableIngredient measurementBottle;
         private Pose measurementPose;
+        private FlairableTool shakeGestureTool;
 
         public bool OwnsHeldInput => isActiveAndEnabled &&
-            (CurrentActionState == ActionState.Closing || PrimaryHeld != null || SecondaryHeld != null || heldPress || consumedFrame == Time.frameCount);
+            (CurrentActionState != ActionState.Stable || PrimaryHeld != null || SecondaryHeld != null || heldPress || consumedFrame == Time.frameCount);
         public GameObject Selected { get; private set; }
         public GameObject PrimaryHeld { get; private set; }
         public GameObject SecondaryHeld { get; private set; }
@@ -115,6 +117,59 @@ namespace CupPrototype.Interaction
         }
 
         public bool CanCloseShaker => CanUseHeldInput && shaker && shaker.CanClose;
+        public bool CanOpenShaker => CanUseHeldInput && shaker && shaker.CanOpen;
+
+        public bool TryOpenShaker()
+        {
+            if (!CanOpenShaker) return false;
+            CurrentActionState = ActionState.Opening;
+            if (!shaker.TryOpen(() => { CurrentActionState = ActionState.Stable; consumedFrame = Time.frameCount; }))
+            {
+                CurrentActionState = ActionState.Stable;
+                return false;
+            }
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryBeginShakeGesture(FlairableTool tool)
+        {
+            if (!CanUseHeldInput || PrimaryHeld || SecondaryHeld || !shaker || !shaker.isActiveAndEnabled ||
+                shaker.State != ShakerState.ReadyToShake || !tool || !tool.isActiveAndEnabled ||
+                tool.gameObject != shaker.gameObject || !tool.enableFlair || !tool.visualRoot) return false;
+            shakeGestureTool = tool;
+            Selected = shaker.gameObject;
+            CurrentActionState = ActionState.Flair;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool CompleteShakeGesture(GestureMatchResult match)
+        {
+            var tool = shakeGestureTool;
+            CancelShakeGesture();
+            if (!CanUseHeldInput || !tool || !shaker || shaker.State != ShakerState.ReadyToShake ||
+                !tool.TryGetAction(match, out var action)) return false;
+            CurrentActionState = ActionState.Shake;
+            PrimaryHeld = shaker.gameObject;
+            if (shaker.TryShake(tool, action, _ =>
+            {
+                PrimaryHeld = SecondaryHeld = null;
+                CurrentActionState = ActionState.Stable;
+                consumedFrame = Time.frameCount;
+            })) return true;
+            PrimaryHeld = null;
+            CurrentActionState = ActionState.Stable;
+            return false;
+        }
+
+        public void CancelShakeGesture()
+        {
+            if (!shakeGestureTool) return;
+            shakeGestureTool = null;
+            CurrentActionState = ActionState.Stable;
+            consumedFrame = Time.frameCount;
+        }
 
         public bool TryCloseShaker()
         {
@@ -246,6 +301,9 @@ namespace CupPrototype.Interaction
 
         private void OnDisable()
         {
+            if (shaker) shaker.CancelOpen();
+            GetComponent<FlairGestureController>()?.CancelRecording();
+            if (shaker) shaker.CancelShake();
             EndMeasurement();
             if (shaker) shaker.CancelTransfer();
             if (shaker) shaker.CancelClose();
@@ -292,7 +350,7 @@ namespace CupPrototype.Interaction
 
         public void SetHeld(GameObject primary, GameObject secondary)
         {
-            if (CurrentActionState == ActionState.Measurement || CurrentActionState == ActionState.AutoTransfer || CurrentActionState == ActionState.Closing) return;
+            if (CurrentActionState != ActionState.Stable) return;
             if (primary && primary != (jigger ? jigger.gameObject : null) &&
                 !primary.TryGetComponent<PourableIngredient>(out _)) return;
             if (secondary && (!jigger || secondary != jigger.gameObject || !primary ||
@@ -303,6 +361,9 @@ namespace CupPrototype.Interaction
 
         public void SetActionState(ActionState state)
         {
+            if (CurrentActionState == ActionState.Opening && shaker) shaker.CancelOpen();
+            if (shakeGestureTool) GetComponent<FlairGestureController>()?.CancelRecording();
+            if (CurrentActionState == ActionState.Shake && shaker) shaker.CancelShake();
             if (CurrentActionState == ActionState.Closing && shaker) shaker.CancelClose();
             if (CurrentActionState == ActionState.AutoTransfer && shaker) shaker.CancelTransfer();
             if (CurrentActionState == ActionState.Measurement) EndMeasurement();
@@ -311,12 +372,16 @@ namespace CupPrototype.Interaction
 
         public void ResetPreparation()
         {
+            GetComponent<FlairGestureController>()?.CancelRecording();
             EndMeasurement();
             if (shaker) shaker.ResetAttempt();
         }
 
         public void ClearState()
         {
+            if (shaker) shaker.CancelOpen();
+            GetComponent<FlairGestureController>()?.CancelRecording();
+            if (shaker) shaker.CancelShake();
             if (shaker) shaker.CancelClose();
             if (shaker) shaker.CancelTransfer();
             EndMeasurement();

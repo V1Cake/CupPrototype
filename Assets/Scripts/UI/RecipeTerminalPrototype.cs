@@ -89,7 +89,8 @@ namespace CupPrototype.UI
         }
         public void OpenBrowser()
         {
-            if (FindAnyObjectByType<CupPrototype.Interaction.InteractionCoordinator>()?.CurrentActionState == CupPrototype.Interaction.ActionState.Closing) return;
+            var interaction = FindAnyObjectByType<CupPrototype.Interaction.InteractionCoordinator>();
+            if (interaction && interaction.CurrentActionState != CupPrototype.Interaction.ActionState.Stable) return;
             // 仅在鼠标已释放的空闲帧进入，避免暂停拖拽/倒液的中途状态。
             if(FindAnyObjectByType<CupPrototype.Interaction.MeasurementCameraLock>()?.IsLocked == true)return;
             if(IsBrowserOpen||returning!=null||Input.GetMouseButton(0)||Input.GetMouseButtonUp(0)||Input.GetMouseButton(1)||

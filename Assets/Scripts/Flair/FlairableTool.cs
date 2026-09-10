@@ -34,6 +34,7 @@ namespace CupPrototype.Flair
         private Vector3 activeRoutineStartPosition;
         private PourTiltFeedback activeTiltFeedback;
         private bool previousEnableTilt;
+        private System.Action<bool> playbackCompleted;
 
         private void Awake()
         {
@@ -227,50 +228,34 @@ namespace CupPrototype.Flair
         // 根据动作簿记录播放临时代码动画，不改数据、不改根对象、不走正式 Animator。
         public void PlayFlair(FlairActionDefinition action)
         {
-            if (IsPlayingFlair)
-            {
-                LogDebug($"[FlairableTool] Flair already playing on {name}");
-                return;
-            }
+            TryPlayFlair(action, null);
+        }
 
-            if (action == null)
-            {
-                IsPlayingFlair = false;
-                return;
-            }
+        public bool TryPlayFlair(FlairActionDefinition action, System.Action<bool> completed)
+        {
+            if (!isActiveAndEnabled || !enableFlair || IsPlayingFlair || action == null || !visualRoot) return false;
 
-            if (visualRoot == null)
-            {
-                IsPlayingFlair = false;
-                Debug.LogWarning("[FlairableTool] visualRoot is missing. Flair skipped.", this);
-                return;
-            }
-
+            playbackCompleted = completed;
             IsPlayingFlair = true;
             LogDebug($"[FlairableTool] Playing {action.actionName}: {action.testAnimationType}");
             activeRoutine = StartCoroutine(PlayTestAnimationRoutine(action));
+            return true;
         }
 
-        private void OnDisable()
-        {
-            if (activeRoutine != null && visualRoot != null)
-            {
-                StopCoroutine(activeRoutine);
-                visualRoot.localRotation = activeRoutineStartRotation;
-                visualRoot.localPosition = activeRoutineStartPosition;
-            }
+        private void OnDisable() => CancelFlair();
 
-            RestoreTiltFeedback();
-            FlairGestureController.SetFlairPlaying(false);
-            IsPlayingFlair = false;
-            activeRoutine = null;
+        public void CancelFlair()
+        {
+            if (!IsPlayingFlair) return;
+            if (activeRoutine != null) StopCoroutine(activeRoutine);
+            FinishFlairPlayback(false);
         }
 
         private IEnumerator PlayTestAnimationRoutine(FlairActionDefinition action)
         {
             if (action == null || visualRoot == null)
             {
-                FinishFlairPlayback();
+                FinishFlairPlayback(false);
                 yield break;
             }
 
@@ -347,7 +332,7 @@ namespace CupPrototype.Flair
             }
         }
 
-        private void FinishFlairPlayback()
+        private void FinishFlairPlayback(bool succeeded = true)
         {
             if (visualRoot != null)
             {
@@ -359,6 +344,9 @@ namespace CupPrototype.Flair
             FlairGestureController.SetFlairPlaying(false);
             IsPlayingFlair = false;
             activeRoutine = null;
+            var completed = playbackCompleted;
+            playbackCompleted = null;
+            completed?.Invoke(succeeded);
         }
     }
 }

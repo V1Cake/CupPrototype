@@ -2,6 +2,8 @@ using CupPrototype.UI;
 using System.Collections.Generic;
 using CupPrototype.Game;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using CupPrototype.Interaction;
 
 namespace CupPrototype.Flair
 {
@@ -25,6 +27,7 @@ namespace CupPrototype.Flair
         private FlairableTool activeTool;
         private List<Vector2> recordedPoints;
         private bool isRecording;
+        private bool isShakeGesture;
         private FlairGestureRecognizer recognizer;
         private CupPrototype.Interaction.InteractionCoordinator coordinator;
 
@@ -55,8 +58,14 @@ namespace CupPrototype.Flair
 
         private void OnDisable()
         {
+            CancelRecording();
+        }
+
+        public void CancelRecording()
+        {
+            if (isShakeGesture && coordinator) coordinator.CancelShakeGesture();
+            isShakeGesture = false;
             IsFlairInputActive = false;
-            IsFlairPlaying = false;
             isRecording = false;
             activeTool = null;
             recordedPoints?.Clear();
@@ -64,16 +73,17 @@ namespace CupPrototype.Flair
 
         private void Update()
         {
-            if (coordinator && coordinator.CurrentActionState == CupPrototype.Interaction.ActionState.Closing) return;
+            if (coordinator && coordinator.CurrentActionState != ActionState.Stable && !isShakeGesture) return;
             if (isRecording && !Input.GetMouseButton(0))
             {
                 FinishRecording();
                 return;
             }
 
-            if (Input.GetKey(flairModifierKey) && Input.GetMouseButtonDown(0))
+            if (Input.GetMouseButtonDown(0) && mainCamera &&
+                (!EventSystem.current || !EventSystem.current.IsPointerOverGameObject()))
             {
-                TryStartRecording();
+                TryStartRecording(mainCamera.ScreenPointToRay(Input.mousePosition), Input.GetKey(flairModifierKey));
             }
 
             if (isRecording)
@@ -87,30 +97,38 @@ namespace CupPrototype.Flair
             }
         }
 
-        private void TryStartRecording()
+        public bool TryStartRecording(Ray ray, bool legacyModifier)
         {
-            if (mainCamera == null || isRecording || GestureTemplateRecorder.IsTemplateRecording)
+            if (!isActiveAndEnabled || isRecording || GestureTemplateRecorder.IsTemplateRecording ||
+                (coordinator && coordinator.CurrentActionState != ActionState.Stable))
             {
-                return;
+                return false;
             }
 
-            TryGetToolUnderMouse(out FlairableTool tool);
+            TryGetTool(ray, out FlairableTool tool);
             if (tool != null && tool.IsPlayingFlair)
             {
                 Debug.Log($"[FlairableTool] Flair already playing on {tool.name}", tool);
-                return;
+                return false;
             }
 
             if (IsFlairPlaying)
             {
-                return;
+                return false;
             }
 
+            isShakeGesture = tool && tool.GetComponent<ShakerPreparation>();
+            if (isShakeGesture)
+            {
+                if (!coordinator || !coordinator.TryBeginShakeGesture(tool)) { isShakeGesture = false; return false; }
+            }
+            else if (!legacyModifier) return false;
             activeTool = tool;
             recordedPoints.Clear();
-            recordedPoints.Add(Input.mousePosition);
+            recordedPoints.Add(mainCamera ? (Vector2)mainCamera.WorldToScreenPoint(ray.origin + ray.direction) : Vector2.zero);
             isRecording = true;
             IsFlairInputActive = true;
+            return true;
         }
 
         private void FinishRecording()
@@ -147,7 +165,14 @@ namespace CupPrototype.Flair
                 Debug.Log($"[FlairGestureController] Recognized: {match.gestureType}, Template={match.templateId}, Distance={match.distance:0.00}", this);
             }
 
-            if (match.isMatched)
+            if (isShakeGesture)
+            {
+                bool succeeded = coordinator && coordinator.CompleteShakeGesture(match);
+                debugInfo.matchMode = succeeded ? "Shake" : "ShakeFailed";
+                if (!succeeded) ShowMessage("Gesture not recognized");
+                isShakeGesture = false;
+            }
+            else if (match.isMatched)
             {
                 string matchMode = "NoAction";
                 if (activeTool != null &&
@@ -211,10 +236,9 @@ namespace CupPrototype.Flair
             }
         }
 
-        private bool TryGetToolUnderMouse(out FlairableTool tool)
+        private bool TryGetTool(Ray ray, out FlairableTool tool)
         {
             tool = null;
-            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
             if (!Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, interactableMask))
             {
                 return false;
