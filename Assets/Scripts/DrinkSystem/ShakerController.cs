@@ -104,7 +104,7 @@ namespace CupPrototype.DrinkSystem
 
             if (container != null)
             {
-                container.mixState = DrinkContainer.MixState.Unmixed;
+                container.SetMixState(DrinkContainer.MixState.Unmixed);
             }
         }
 
@@ -126,15 +126,15 @@ namespace CupPrototype.DrinkSystem
 
             if (shakeLevel <= 0f)
             {
-                container.mixState = DrinkContainer.MixState.Unmixed;
+                container.SetMixState(DrinkContainer.MixState.Unmixed);
             }
             else if (shakeLevel < shakeRequired)
             {
-                container.mixState = DrinkContainer.MixState.PartiallyMixed;
+                container.SetMixState(DrinkContainer.MixState.PartiallyMixed);
             }
             else
             {
-                container.mixState = DrinkContainer.MixState.Mixed;
+                container.SetMixState(DrinkContainer.MixState.Mixed);
             }
         }
     }

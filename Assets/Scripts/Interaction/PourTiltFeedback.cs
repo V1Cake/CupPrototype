@@ -8,6 +8,7 @@ namespace CupPrototype.Interaction
         // 必须绑定模型子物体，避免影响根对象、Collider、Rigidbody 和后续动画。
         public Transform visualRoot;
         public float tiltAngle = 18f;
+        [Tooltip("仅控制模型旋转到倾斜姿态的速度，不控制液体流速。Bottle → Jigger 流速请调整 Pourable Ingredient 的 Pour Rate Per Second。")]
         public float tiltSpeed = 8f;
         public bool enableTilt = true;
 

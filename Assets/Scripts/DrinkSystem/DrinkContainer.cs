@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using CupPrototype.Game;
 using CupPrototype.Interaction;
@@ -47,6 +48,7 @@ namespace CupPrototype.DrinkSystem
 
         // ===== 容量与颜色状态 =====
         [SerializeField] private float maxVolume = 100f;
+        [SerializeField] private bool unlimitedReceive;
         [SerializeField] private float currentVolume;
         [SerializeField] private Color currentColor = Color.clear;
 
@@ -67,10 +69,24 @@ namespace CupPrototype.DrinkSystem
 
         // ===== 对外只读访问 =====
         public float MaxVolume => maxVolume;
+        public bool UnlimitedReceive => containerType == ContainerType.Shaker && unlimitedReceive;
         public float CurrentVolume => currentVolume;
         public Color CurrentColor => currentColor;
         public IReadOnlyList<IngredientEntry> Ingredients => ingredients;
         public string DisplayName => string.IsNullOrWhiteSpace(containerName) ? gameObject.name : containerName;
+
+        public event Action<DrinkContainer> StateChanged;
+
+        internal void SetMixState(MixState nextState)
+        {
+            if (mixState == nextState)
+            {
+                return;
+            }
+
+            mixState = nextState;
+            StateChanged?.Invoke(this);
+        }
 
         // ===== 生命周期：绑定液体视觉 =====
         private void Awake()
@@ -227,7 +243,8 @@ namespace CupPrototype.DrinkSystem
         // 按源容器现有材料比例，把指定数量转移到目标容器。
         public bool TransferTo(DrinkContainer target, float amount)
         {
-            if (target == null || IsEmpty() || target.IsFull() || amount <= 0f)
+            bool unlimited = target != null && target.UnlimitedReceive && containerType == ContainerType.Jigger;
+            if (target == null || IsEmpty() || (!unlimited && target.IsFull()) || amount <= 0f)
             {
                 return false;
             }
@@ -252,7 +269,8 @@ namespace CupPrototype.DrinkSystem
             }
 
             float sourceVolumeBefore = currentVolume;
-            float actualAmount = Mathf.Min(amount, currentVolume, target.GetRemainingVolume());
+            float actualAmount = unlimited ? Mathf.Min(amount, currentVolume)
+                : Mathf.Min(amount, currentVolume, target.GetRemainingVolume());
             MixState sourceMixState = mixState;
             if (actualAmount <= 0f)
             {
@@ -298,7 +316,7 @@ namespace CupPrototype.DrinkSystem
             // 按比例把材料记录转移到目标容器，再从源容器扣除对应数量。
             foreach (IngredientEntry transferEntry in transferEntries)
             {
-                target.AddIngredientInternal(transferEntry.ingredient, transferEntry.amount, false);
+                target.AddIngredientInternal(transferEntry.ingredient, transferEntry.amount, false, false);
                 SubtractIngredientAmount(transferEntry.ingredient, transferEntry.amount);
             }
 
@@ -335,6 +353,8 @@ namespace CupPrototype.DrinkSystem
             }
 
             UpdateLiquidVisual();
+            StateChanged?.Invoke(this);
+            target.StateChanged?.Invoke(target);
 
             pendingTransferLogAmount += actualAmount;
             if (debugLogs && DemoModeController.DeveloperModeActive &&
@@ -367,6 +387,8 @@ namespace CupPrototype.DrinkSystem
             {
                 shakerController.ResetShake();
             }
+
+            StateChanged?.Invoke(this);
         }
 
         // ===== 当前综合风味 =====
@@ -514,7 +536,7 @@ namespace CupPrototype.DrinkSystem
 
         // ===== 内部工具：不经过容量判断的加料入口 =====
         // 公开 AddIngredient 负责容量裁剪；TransferTo 已经提前计算好可转移量。
-        private void AddIngredientInternal(IngredientData ingredient, float amount, bool log)
+        private void AddIngredientInternal(IngredientData ingredient, float amount, bool log, bool notifyStateChanged = true)
         {
             if (ingredient == null || amount <= 0f)
             {
@@ -545,6 +567,11 @@ namespace CupPrototype.DrinkSystem
 
             RecalculateFromIngredients();
             UpdateLiquidVisual();
+
+            if (notifyStateChanged)
+            {
+                StateChanged?.Invoke(this);
+            }
 
             if (log && debugLogs && DemoModeController.DeveloperModeActive)
             {

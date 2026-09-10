@@ -16,6 +16,9 @@ namespace CupPrototype.Interaction
 
         // ===== 当前拖拽状态 =====
         private InteractableObject currentObject;
+        private InteractionCoordinator coordinator;
+        // 只读暴露真实拖拽对象，供独立视觉反馈使用；不改变拖动逻辑。
+        public InteractableObject CurrentDraggedObject => currentObject;
         private Vector3 dragOffset;
         private Plane dragPlane;
         private float draggedObjectFixedY;
@@ -23,6 +26,7 @@ namespace CupPrototype.Interaction
         // ===== 生命周期：初始化相机和默认平面 =====
         private void Awake()
         {
+            coordinator = GetComponent<InteractionCoordinator>();
             if (targetCamera == null)
             {
                 targetCamera = Camera.main;
@@ -35,6 +39,7 @@ namespace CupPrototype.Interaction
         // ===== 每帧输入入口 =====
         private void Update()
         {
+            if (coordinator && coordinator.OwnsHeldInput) { StopDrag(); return; }
             // 花式或模板录制接管鼠标输入时，防止画轨迹同时拖动物体。
             if (FlairGestureController.IsFlairInputActive ||
                 FlairGestureController.IsFlairPlaying ||
@@ -98,6 +103,13 @@ namespace CupPrototype.Interaction
             }
 
             DrinkContainer drinkContainer = hit.collider.GetComponentInParent<DrinkContainer>();
+
+            // Shift 保留给 Jigger / Shaker 的容器移液，避免脚本执行顺序导致同一按键同时启动拖动。
+            if (drinkContainer != null &&
+                (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
+            {
+                return;
+            }
 
             // 已选中材料时，杯子点击用于持续倒入，不进入拖拽。
             if (DrinkTestManager.HasSelectedIngredient && drinkContainer != null)

@@ -26,6 +26,7 @@ namespace CupPrototype.Flair
         private List<Vector2> recordedPoints;
         private bool isRecording;
         private FlairGestureRecognizer recognizer;
+        private CupPrototype.Interaction.InteractionCoordinator coordinator;
 
         public static void SetFlairPlaying(bool isPlaying)
         {
@@ -34,6 +35,7 @@ namespace CupPrototype.Flair
 
         private void Awake()
         {
+            coordinator = GetComponent<CupPrototype.Interaction.InteractionCoordinator>();
             IsFlairInputActive = false;
             IsFlairPlaying = false;
 
@@ -62,6 +64,7 @@ namespace CupPrototype.Flair
 
         private void Update()
         {
+            if (coordinator && coordinator.CurrentActionState == CupPrototype.Interaction.ActionState.Closing) return;
             if (isRecording && !Input.GetMouseButton(0))
             {
                 FinishRecording();

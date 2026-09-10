@@ -1,0 +1,329 @@
+using System.Collections.Generic;
+using CupPrototype.DrinkSystem;
+using CupPrototype.Flair;
+using CupPrototype.UI;
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+namespace CupPrototype.Interaction
+{
+    public enum ActionState
+    {
+        Stable,
+        Measurement,
+        AutoTransfer,
+        Flair,
+        Shake,
+        AutoPour,
+        Closing
+    }
+
+    [DisallowMultipleComponent]
+    [DefaultExecutionOrder(-500)]
+    public sealed class InteractionCoordinator : MonoBehaviour
+    {
+        [SerializeField] private Camera targetCamera;
+        [SerializeField] private Transform bottleHoldAnchor;
+        [SerializeField] private DrinkContainer jigger;
+        [SerializeField] private Transform jiggerHoldAnchor;
+        [SerializeField] private MeasurementOverlay measurementOverlay;
+        [SerializeField] private MeasurementCameraLock measurementCamera;
+        [SerializeField] private ShakerPreparation shaker;
+        [SerializeField] private Transform iceWell;
+        [SerializeField] private LayerMask bottleLayers = ~0;
+        private DrinkTestManager legacyInteraction;
+        private readonly Dictionary<PourableIngredient, Pose> bottleRestPoses = new();
+        private Pose jiggerRestPose;
+        private bool heldPress;
+        private int consumedFrame = -1;
+        private PourableIngredient measurementBottle;
+        private Pose measurementPose;
+
+        public bool OwnsHeldInput => isActiveAndEnabled &&
+            (CurrentActionState == ActionState.Closing || PrimaryHeld != null || SecondaryHeld != null || heldPress || consumedFrame == Time.frameCount);
+        public GameObject Selected { get; private set; }
+        public GameObject PrimaryHeld { get; private set; }
+        public GameObject SecondaryHeld { get; private set; }
+        public ActionState CurrentActionState { get; private set; } = ActionState.Stable;
+
+        private void Awake()
+        {
+            ClearState();
+            if (!targetCamera) targetCamera = Camera.main;
+            legacyInteraction = GetComponent<DrinkTestManager>();
+            foreach (var bottle in FindObjectsByType<PourableIngredient>())
+                bottleRestPoses[bottle] = new Pose(bottle.transform.position, bottle.transform.rotation);
+            if (jigger) jiggerRestPose = new Pose(jigger.transform.position, jigger.transform.rotation);
+        }
+
+        private bool CanUseHeldInput => isActiveAndEnabled && CurrentActionState == ActionState.Stable &&
+            (!legacyInteraction || legacyInteraction.enabled) &&
+            !FlairGestureController.IsFlairInputActive && !FlairGestureController.IsFlairPlaying &&
+            !GestureTemplateRecorder.IsTemplateRecording;
+
+        private void Update()
+        {
+            if (!Input.GetMouseButton(0) && !Input.GetMouseButtonUp(0)) heldPress = false;
+            if (CurrentActionState == ActionState.Measurement)
+            {
+                AdvanceMeasurement(Input.GetMouseButton(0), Time.deltaTime);
+                return;
+            }
+            if (!CanUseHeldInput || (EventSystem.current && EventSystem.current.IsPointerOverGameObject())) return;
+            if (Input.GetMouseButtonDown(1)) TryReturnHeld();
+            if (!Input.GetMouseButtonDown(0) || !targetCamera) return;
+            var ray = targetCamera.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, 1000f, bottleLayers))
+            {
+                if (iceWell && hit.collider.transform.IsChildOf(iceWell))
+                {
+                    heldPress = true;
+                    consumedFrame = Time.frameCount;
+                    TryAddProcessIce(hit.collider);
+                    return;
+                }
+                var bottle = hit.collider.GetComponentInParent<PourableIngredient>();
+                var container = hit.collider.GetComponentInParent<DrinkContainer>();
+                var clickedShaker = hit.collider.GetComponentInParent<ShakerPreparation>();
+                if (clickedShaker && clickedShaker == shaker)
+                {
+                    heldPress = true;
+                    consumedFrame = Time.frameCount;
+                    if (jigger && (PrimaryHeld == jigger.gameObject || SecondaryHeld == jigger.gameObject)) TryStartJiggerTransfer(clickedShaker);
+                    else TryAcquireShaker(clickedShaker);
+                    return;
+                }
+                if (!bottle && (!container || container.containerType != DrinkContainer.ContainerType.Jigger)) return;
+                heldPress = true;
+                consumedFrame = Time.frameCount;
+                if (bottle) TryAcquireBottle(bottle);
+                else if (SecondaryHeld == container.gameObject) TryStartMeasurement(ray);
+                else TryAcquireJigger(container);
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (PrimaryHeld && bottleHoldAnchor && PrimaryHeld.TryGetComponent<PourableIngredient>(out _))
+            {
+                var pose = CurrentActionState == ActionState.Measurement
+                    ? measurementPose : new Pose(bottleHoldAnchor.position, bottleHoldAnchor.rotation);
+                PrimaryHeld.transform.SetPositionAndRotation(pose.position, pose.rotation);
+            }
+            if (CurrentActionState != ActionState.AutoTransfer && jigger && jiggerHoldAnchor && (PrimaryHeld == jigger.gameObject || SecondaryHeld == jigger.gameObject))
+                jigger.transform.SetPositionAndRotation(jiggerHoldAnchor.position, jiggerHoldAnchor.rotation);
+        }
+
+        public bool CanCloseShaker => CanUseHeldInput && shaker && shaker.CanClose;
+
+        public bool TryCloseShaker()
+        {
+            if (!CanCloseShaker) return false;
+            CurrentActionState = ActionState.Closing;
+            if (!shaker.TryClose(() => { CurrentActionState = ActionState.Stable; consumedFrame = Time.frameCount; }))
+            {
+                CurrentActionState = ActionState.Stable;
+                return false;
+            }
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryAddProcessIce(Collider target)
+        {
+            if (!CanUseHeldInput || !iceWell || !target || !target.enabled ||
+                !target.gameObject.activeInHierarchy || !target.transform.IsChildOf(iceWell) ||
+                !shaker || !shaker.TryAddProcessIce()) return false;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryStartJiggerTransfer(ShakerPreparation target)
+        {
+            bool primaryJigger = jigger && PrimaryHeld == jigger.gameObject && !SecondaryHeld;
+            bool secondaryJigger = jigger && SecondaryHeld == jigger.gameObject && PrimaryHeld &&
+                PrimaryHeld.TryGetComponent<PourableIngredient>(out _);
+            if (!CanUseHeldInput || !shaker || target != shaker || (!primaryJigger && !secondaryJigger))
+                return false;
+            CurrentActionState = ActionState.AutoTransfer;
+            if (!shaker.TryTransferFrom(jigger, () => { CurrentActionState = ActionState.Stable; consumedFrame = Time.frameCount; }))
+            {
+                CurrentActionState = ActionState.Stable;
+                return false;
+            }
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryAcquireShaker(ShakerPreparation target)
+        {
+            if (!CanUseHeldInput || !shaker || target != shaker || PrimaryHeld || SecondaryHeld ||
+                !shaker.TryAcquire()) return false;
+            Selected = shaker.gameObject;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryAcquireBottle(PourableIngredient bottle)
+        {
+            if (!CanUseHeldInput || (PrimaryHeld && (!jigger || PrimaryHeld != jigger.gameObject)) ||
+                SecondaryHeld || !bottleHoldAnchor || !bottle ||
+                !bottle.isActiveAndEnabled || !bottleRestPoses.ContainsKey(bottle)) return false;
+            if (PrimaryHeld) SecondaryHeld = PrimaryHeld;
+            bottle.transform.SetPositionAndRotation(bottleHoldAnchor.position, bottleHoldAnchor.rotation);
+            Selected = PrimaryHeld = bottle.gameObject;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryStartMeasurement(Ray aim)
+        {
+            if (!CanUseHeldInput || !targetCamera || !jigger || SecondaryHeld != jigger.gameObject || !PrimaryHeld ||
+                !PrimaryHeld.TryGetComponent<PourableIngredient>(out var bottle) || !bottle.ingredientData ||
+                bottle.pourRatePerSecond <= 0f || jigger.IsFull() || !jigger.CanAcceptIngredient(bottle.ingredientData) ||
+                !measurementOverlay || !measurementOverlay.isActiveAndEnabled ||
+                !measurementCamera || !measurementCamera.isActiveAndEnabled ||
+                !Physics.Raycast(aim, out var hit, 1000f, bottleLayers) ||
+                hit.collider.GetComponentInParent<DrinkContainer>() != jigger) return false;
+
+            if (!TryGetVisibleBounds(bottle.gameObject, out var bottleBounds) ||
+                !TryGetVisibleBounds(jigger.gameObject, out var jiggerBounds)) return false;
+            var mouth = bottle.transform.InverseTransformPoint(new Vector3(bottleBounds.center.x, bottleBounds.max.y, bottleBounds.center.z));
+            var rotation = Quaternion.FromToRotation(Vector3.up, (-targetCamera.transform.right * .85f + Vector3.down * .53f).normalized);
+            var spout = new Vector3(jiggerBounds.center.x, jiggerBounds.max.y + .04f, jiggerBounds.center.z);
+            measurementPose = new Pose(spout - rotation * Vector3.Scale(mouth, bottle.transform.lossyScale), rotation);
+            measurementBottle = bottle;
+            CurrentActionState = ActionState.Measurement;
+            heldPress = true;
+            consumedFrame = Time.frameCount;
+            measurementCamera.Lock();
+            measurementOverlay.Show(jigger, bottle.ingredientData);
+            bottle.transform.SetPositionAndRotation(measurementPose.position, measurementPose.rotation);
+            return true;
+        }
+
+        public void AdvanceMeasurement(bool leftHeld, float deltaTime)
+        {
+            if (CurrentActionState != ActionState.Measurement) return;
+            if (!leftHeld || !measurementBottle || PrimaryHeld != measurementBottle.gameObject ||
+                !jigger || !jigger.isActiveAndEnabled || SecondaryHeld != jigger.gameObject ||
+                !measurementOverlay || !measurementOverlay.isActiveAndEnabled ||
+                !measurementCamera || !measurementCamera.isActiveAndEnabled ||
+                jigger.IsFull() || !jigger.CanAcceptIngredient(measurementBottle.ingredientData))
+            {
+                EndMeasurement();
+                return;
+            }
+            float amount = measurementBottle.pourRatePerSecond * Mathf.Max(0f, deltaTime);
+            if (amount > 0f) jigger.AddIngredient(measurementBottle.ingredientData, amount, false);
+            if (jigger.IsFull()) EndMeasurement();
+        }
+
+        public void EndMeasurement()
+        {
+            if (CurrentActionState != ActionState.Measurement) return;
+            if (measurementBottle && bottleHoldAnchor)
+                measurementBottle.transform.SetPositionAndRotation(bottleHoldAnchor.position, bottleHoldAnchor.rotation);
+            measurementBottle = null;
+            if (measurementOverlay) measurementOverlay.Hide();
+            if (measurementCamera) measurementCamera.Unlock();
+            CurrentActionState = ActionState.Stable;
+            consumedFrame = Time.frameCount;
+        }
+
+        private static bool TryGetVisibleBounds(GameObject target, out Bounds bounds)
+        {
+            bounds = default;
+            bool found = false;
+            foreach (var renderer in target.GetComponentsInChildren<Renderer>())
+            {
+                if (!renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
+                if (found) bounds.Encapsulate(renderer.bounds);
+                else { bounds = renderer.bounds; found = true; }
+            }
+            return found;
+        }
+
+        private void OnDisable()
+        {
+            EndMeasurement();
+            if (shaker) shaker.CancelTransfer();
+            if (shaker) shaker.CancelClose();
+        }
+
+        public bool TryReturnBottle()
+        {
+            if (!CanUseHeldInput || !PrimaryHeld ||
+                !PrimaryHeld.TryGetComponent<PourableIngredient>(out var bottle) ||
+                !bottleRestPoses.TryGetValue(bottle, out var rest)) return false;
+            bottle.transform.SetPositionAndRotation(rest.position, rest.rotation);
+            PrimaryHeld = SecondaryHeld;
+            SecondaryHeld = null;
+            Selected = PrimaryHeld;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryAcquireJigger(DrinkContainer target)
+        {
+            if (!CanUseHeldInput || !jigger || target != jigger || !jigger.isActiveAndEnabled ||
+                jigger.containerType != DrinkContainer.ContainerType.Jigger || !jiggerHoldAnchor || SecondaryHeld ||
+                (PrimaryHeld && !PrimaryHeld.TryGetComponent<PourableIngredient>(out _))) return false;
+            jigger.transform.SetPositionAndRotation(jiggerHoldAnchor.position, jiggerHoldAnchor.rotation);
+            if (PrimaryHeld) SecondaryHeld = jigger.gameObject;
+            else PrimaryHeld = jigger.gameObject;
+            Selected = jigger.gameObject;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryReturnHeld()
+        {
+            if (TryReturnBottle()) return true;
+            if (!CanUseHeldInput || !jigger || PrimaryHeld != jigger.gameObject) return false;
+            jigger.transform.SetPositionAndRotation(jiggerRestPose.position, jiggerRestPose.rotation);
+            PrimaryHeld = null;
+            Selected = null;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public void SetSelected(GameObject selected) => Selected = selected;
+
+        public void SetHeld(GameObject primary, GameObject secondary)
+        {
+            if (CurrentActionState == ActionState.Measurement || CurrentActionState == ActionState.AutoTransfer || CurrentActionState == ActionState.Closing) return;
+            if (primary && primary != (jigger ? jigger.gameObject : null) &&
+                !primary.TryGetComponent<PourableIngredient>(out _)) return;
+            if (secondary && (!jigger || secondary != jigger.gameObject || !primary ||
+                !primary.TryGetComponent<PourableIngredient>(out _))) return;
+            PrimaryHeld = primary;
+            SecondaryHeld = secondary;
+        }
+
+        public void SetActionState(ActionState state)
+        {
+            if (CurrentActionState == ActionState.Closing && shaker) shaker.CancelClose();
+            if (CurrentActionState == ActionState.AutoTransfer && shaker) shaker.CancelTransfer();
+            if (CurrentActionState == ActionState.Measurement) EndMeasurement();
+            if (state != ActionState.Measurement) CurrentActionState = state;
+        }
+
+        public void ResetPreparation()
+        {
+            EndMeasurement();
+            if (shaker) shaker.ResetAttempt();
+        }
+
+        public void ClearState()
+        {
+            if (shaker) shaker.CancelClose();
+            if (shaker) shaker.CancelTransfer();
+            EndMeasurement();
+            Selected = null;
+            PrimaryHeld = null;
+            SecondaryHeld = null;
+            CurrentActionState = ActionState.Stable;
+        }
+    }
+}

@@ -46,6 +46,7 @@ namespace CupPrototype.DrinkSystem
 
         // ===== 当前选择与倒入状态 =====
         private PourableIngredient selectedIngredient;
+        private InteractionCoordinator coordinator;
         private PourableIngredient currentSelectedIngredient;
         private DrinkContainer selectedSourceContainer;
         private DrinkContainer currentPourContainer;
@@ -64,10 +65,25 @@ namespace CupPrototype.DrinkSystem
         public static bool HasSelectedIngredient { get; private set; }
         // 供外部验证 F 评分当前实际使用的目标引用。
         public TargetDrinkData CurrentTarget => targetDrink;
+        public PourableIngredient SelectedIngredient => currentSelectedIngredient;
+        public DrinkContainer SelectedSourceContainer => selectedSourceContainer;
+        public DrinkContainer ActiveContainer => currentPourContainer != null
+            ? currentPourContainer
+            : currentTransferTargetContainer != null
+                ? currentTransferTargetContainer
+                : selectedSourceContainer;
+        public string InteractionState => currentMode.ToString();
+        public DrinkScoreResult LastEvaluation { get; private set; }
+
+        public event Action SelectionChanged;
+        public event Action InteractionStateChanged;
+        public event Action<TargetDrinkData> TargetChanged;
+        public event Action<DrinkScoreResult> EvaluationChanged;
 
         // ===== 生命周期：初始化相机和静态状态 =====
         private void Awake()
         {
+            coordinator = GetComponent<InteractionCoordinator>();
             HasSelectedIngredient = false;
 
             if (targetCamera == null)
@@ -134,6 +150,7 @@ namespace CupPrototype.DrinkSystem
         // 3. 两者都没有时，本脚本不处理拖拽，让 DragController 正常移动物体，ShakerController 再根据移动距离累计摇晃。
         private void HandleMouseInput()
         {
+            if (coordinator && coordinator.OwnsHeldInput) return;
             // 花式或模板录制接管鼠标输入时，防止轨迹经过容器误触发倒入、转移或材料选择。
             if (FlairGestureController.IsFlairInputActive ||
                 FlairGestureController.IsFlairPlaying ||
@@ -152,6 +169,12 @@ namespace CupPrototype.DrinkSystem
                 promptedMissingIngredientThisPress = false;
                 hasShownCurrentPourRejection = false;
                 return;
+            }
+
+            // 容器转移是 Shift 临时模式；松开 Shift 后立即恢复普通拖动，避免 Shaker 保持为转移源。
+            if (selectedSourceContainer != null && !IsShiftPressed())
+            {
+                ClearSelectedSourceContainer();
             }
 
             if (Input.GetMouseButtonDown(0))
@@ -201,6 +224,18 @@ namespace CupPrototype.DrinkSystem
             DrinkContainer drinkContainer = hit.collider.GetComponentInParent<DrinkContainer>();
             if (IsShiftPressed() && currentSelectedIngredient == null && drinkContainer != null)
             {
+                // 已选中转移源时，Shift + 点击另一个容器表示目标，不再把目标错误切换为新的源。
+                // Shaker 继续走按住转移；Jigger 保持已有的即时转移配置。
+                if (selectedSourceContainer != null && drinkContainer != selectedSourceContainer)
+                {
+                    if (ShouldInstantTransferFromJigger())
+                    {
+                        TransferSelectedSourceToTarget(drinkContainer, selectedSourceContainer.CurrentVolume);
+                    }
+
+                    return;
+                }
+
                 HandleContainerSourceSelection(drinkContainer);
                 return;
             }
@@ -272,6 +307,7 @@ namespace CupPrototype.DrinkSystem
 
             Debug.Log($"[DrinkTestManager] Selected ingredient: {ingredientName}", selectedIngredient);
             UpdateSelectedIngredientUI();
+            SelectionChanged?.Invoke();
         }
 
         // ===== 选择或取消源容器 =====
@@ -561,6 +597,7 @@ namespace CupPrototype.DrinkSystem
         {
             targetDrink = target;
             ClearPreviousFeedback();
+            TargetChanged?.Invoke(targetDrink);
         }
 
         // 目标切换时复用 R 的完整清空流程，但由调用方统一写入新回合状态。
@@ -661,6 +698,7 @@ namespace CupPrototype.DrinkSystem
             selectedIngredient = null;
             currentSelectedIngredient = null;
             UpdateDragBlockState();
+            SelectionChanged?.Invoke();
             SetInputMode(InputMode.Idle);
 
             Debug.Log("[DrinkTestManager] Ingredient selection cleared.", this);
@@ -701,6 +739,8 @@ namespace CupPrototype.DrinkSystem
         // ===== 更新转移源 UI =====
         private void UpdateTransferSourceUI()
         {
+            SelectionChanged?.Invoke();
+
             if (debugUI != null)
             {
                 debugUI.SetTransferSource(selectedSourceContainer != null
@@ -732,6 +772,7 @@ namespace CupPrototype.DrinkSystem
 
             InputMode previousMode = currentMode;
             currentMode = nextMode;
+            InteractionStateChanged?.Invoke();
             Debug.Log($"[DrinkTestManager] Mode changed: {previousMode} -> {currentMode}", this);
         }
 
@@ -777,6 +818,8 @@ namespace CupPrototype.DrinkSystem
             Debug.Log($"[DrinkTestManager] Scoring container: {drinkContainer.DisplayName}, MixState={drinkContainer.mixState}, Ingredients: {drinkContainer.GetIngredientDebugString()}", drinkContainer);
 
             DrinkScoreResult scoreResult = DrinkScoreSystem.ScoreDrink(drinkContainer, targetDrink);
+            LastEvaluation = scoreResult;
+            EvaluationChanged?.Invoke(LastEvaluation);
             string scoreSummary = DrinkScoreFeedbackFormatter.Format(scoreResult);
             Debug.Log($"[DrinkTestManager] Preparation: {targetDrink.requiredPreparation}, Matched={scoreResult.preparationMatched}, Feedback={scoreResult.preparationFeedback}", drinkContainer);
 
@@ -877,6 +920,7 @@ namespace CupPrototype.DrinkSystem
         // R 与目标切换共用的唯一重置流程，避免复制容器、选择和倒入状态清理逻辑。
         private void ResetCurrentDrink(bool resetRoundState)
         {
+            if (coordinator) coordinator.ResetPreparation();
             hasShownCurrentPourRejection = false;
             StopActiveIngredientTilt();
             StopSelectedSourceTilt();
@@ -902,6 +946,7 @@ namespace CupPrototype.DrinkSystem
             isTransferringContainer = false;
             promptedMissingIngredientThisPress = false;
             HasSelectedIngredient = false;
+            SelectionChanged?.Invoke();
             SetInputMode(InputMode.Idle);
 
             Debug.Log("[DrinkTestManager] Cleared all containers.", this);
@@ -929,6 +974,12 @@ namespace CupPrototype.DrinkSystem
         // 清除上一目标的评分、试味反馈和屏幕错误提示。
         private void ClearPreviousFeedback()
         {
+            if (LastEvaluation != null)
+            {
+                LastEvaluation = null;
+                EvaluationChanged?.Invoke(null);
+            }
+
             if (debugUI != null)
             {
                 debugUI.SetTasteFeedback("None");
