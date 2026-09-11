@@ -1,4 +1,5 @@
 using CupPrototype.DrinkSystem;
+using CupPrototype.Interaction;
 using CupPrototype.UI;
 using System.Collections.Generic;
 using TMPro;
@@ -33,12 +34,14 @@ namespace CupPrototype.Game
         [SerializeField] private bool clearContainersOnTargetSwitch = true;
         // 实际执行评分、反馈和统一重置的现有管理器。
         [SerializeField] private DrinkTestManager drinkTestManager;
+        [SerializeField] private CurrentDrinkRecord currentDrinkRecord;
         // 是否输出目标列表和切换过程的调试日志。
         [SerializeField] private bool debugLogs = true;
 
         public DemoRoundState State { get; private set; } = DemoRoundState.Ready;
         // 对外只读的当前评分目标。
-        public TargetDrinkData CurrentTarget => currentTarget;
+        public OrderContext ActiveOrder { get; private set; }
+        public TargetDrinkData CurrentTarget => ActiveOrder?.Recipe ?? currentTarget;
         // 唯一目标列表的只读视图，供 Build 前验证使用，不创建第二份运行时列表。
         public IReadOnlyList<TargetDrinkData> AvailableTargets => availableTargets;
 
@@ -58,6 +61,7 @@ namespace CupPrototype.Game
             }
 
             Debug.LogWarning("[DemoRoundManager] No available targets configured.", this);
+            if (currentTarget) ActivateOrder(currentTarget);
             if (drinkTestManager != null)
             {
                 drinkTestManager.SetTargetDrink(currentTarget);
@@ -122,6 +126,11 @@ namespace CupPrototype.Game
             {
                 drinkTestManager.ResetForTargetSwitch();
             }
+            else if (currentDrinkRecord)
+            {
+                // 即使保留液体，也要结束上一单动作，防止迟到回调写入新制作记录。
+                currentDrinkRecord.GetComponent<InteractionCoordinator>()?.ResetPreparation();
+            }
 
             RefreshTargetReferences(selectedTarget);
             Debug.Log($"[DemoRoundManager] Target changed: {OrderDisplayController.GetTargetDisplayName(selectedTarget)}, Index={currentTargetIndex}", this);
@@ -144,6 +153,7 @@ namespace CupPrototype.Game
         // 补全现有 UI 与评分管理器引用，不创建第二套目标管理器。
         private void ResolveTargetReferences()
         {
+            if (!currentDrinkRecord) currentDrinkRecord = FindAnyObjectByType<CurrentDrinkRecord>();
             if (orderDisplay == null)
             {
                 orderDisplay = FindAnyObjectByType<OrderDisplayController>();
@@ -158,6 +168,7 @@ namespace CupPrototype.Game
         // 使用同一个 selectedTarget 同步订单 UI、F 评分目标、旧反馈和回合状态。
         private void RefreshTargetReferences(TargetDrinkData selectedTarget)
         {
+            ActivateOrder(selectedTarget);
             if (orderDisplay != null)
             {
                 orderDisplay.ShowTargetDrink(selectedTarget);
@@ -179,6 +190,12 @@ namespace CupPrototype.Game
 
             State = DemoRoundState.Mixing;
             SetStatus("Round: Mixing");
+        }
+
+        private void ActivateOrder(TargetDrinkData recipe)
+        {
+            ActiveOrder = new OrderContext(recipe);
+            if (currentDrinkRecord) currentDrinkRecord.BeginOrder(ActiveOrder);
         }
 
         public void StartRound()

@@ -6,6 +6,29 @@ namespace CupPrototype.DrinkSystem
     // 把风味数值转换成原型阶段可读的自然语言反馈。
     public static class TasteFeedbackSystem
     {
+        public static string GenerateFeedback(FlavorProfile actual, FlavorProfile expected, float tolerance)
+        {
+            var differences = new[]
+            {
+                (actual.sourness - expected.sourness, "Too sour.", "Not sour enough."),
+                (actual.sweetness - expected.sweetness, "Too sweet.", "Not sweet enough."),
+                (actual.bitterness - expected.bitterness, "Too bitter.", "Not bitter enough."),
+                (actual.freshness - expected.freshness, "Too fresh.", "Not fresh enough."),
+                (actual.body - expected.body, "Body is too heavy.", "Body is too light."),
+                (actual.aroma - expected.aroma, "Aroma is too strong.", "Aroma is too weak.")
+            };
+            float largest = UnityEngine.Mathf.Max(.01f, tolerance);
+            string feedback = "Overall close to expected.";
+            foreach (var difference in differences)
+            {
+                float magnitude = UnityEngine.Mathf.Abs(difference.Item1);
+                if (magnitude <= largest) continue;
+                largest = magnitude;
+                feedback = difference.Item1 > 0 ? difference.Item2 : difference.Item3;
+            }
+            return feedback;
+        }
+
         // ===== 根据风味生成文本 =====
         public static string GenerateFeedback(FlavorProfile profile)
         {

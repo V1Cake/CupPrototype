@@ -115,9 +115,8 @@ public static class InteractionCoordinatorOpenCheck
             {
                 // Taste is a fixture fact here; no Taste gameplay is executed.
                 record.RecordTaste(); ui.Refresh();
-                Require(!ui.IsOpenVisible && !coordinator.TryOpenShaker() && !shaker.TryOpen(null), "Tasted rejects at both entry points");
-                Require(record.ShakePerformed == wasShaken && record.ProcessIce && JsonUtility.ToJson(liquid) == before && shaker.State == previous, "Tasted rejection preserves data");
-                record.ResetAttempt(); record.TryRecordProcessIce(); if (wasShaken) record.RecordShake();
+                Require(ui.IsOpenVisible && coordinator.CanOpenShaker && shaker.CanOpen, "T12: Tasted no longer blocks Open");
+                Require(record.ShakePerformed == wasShaken && record.ProcessIce && JsonUtility.ToJson(liquid) == before && shaker.State == previous, "Tasted preserves data");
             }
             Require(coordinator.TryAcquireBottle(bottle) && coordinator.TryAcquireJigger(jigger), "dual Held setup");
             ui.Refresh(); open.onClick.Invoke();

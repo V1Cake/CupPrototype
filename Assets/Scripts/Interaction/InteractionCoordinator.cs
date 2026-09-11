@@ -16,7 +16,8 @@ namespace CupPrototype.Interaction
         Shake,
         AutoPour,
         Closing,
-        Opening
+        Opening,
+        Tasting
     }
 
     [DisallowMultipleComponent]
@@ -31,6 +32,11 @@ namespace CupPrototype.Interaction
         [SerializeField] private MeasurementCameraLock measurementCamera;
         [SerializeField] private ShakerPreparation shaker;
         [SerializeField] private Transform iceWell;
+        [SerializeField] private StirStickTaste stirStick;
+        [SerializeField] private DrinkContainer[] rackCups = System.Array.Empty<DrinkContainer>();
+        [SerializeField] private Transform servePosition;
+        private readonly Dictionary<DrinkContainer, Pose> cupRestPoses = new();
+        private readonly Dictionary<DrinkContainer, Vector3> cupBottomOffsets = new();
         [SerializeField] private LayerMask bottleLayers = ~0;
         private DrinkTestManager legacyInteraction;
         private readonly Dictionary<PourableIngredient, Pose> bottleRestPoses = new();
@@ -56,6 +62,13 @@ namespace CupPrototype.Interaction
             foreach (var bottle in FindObjectsByType<PourableIngredient>())
                 bottleRestPoses[bottle] = new Pose(bottle.transform.position, bottle.transform.rotation);
             if (jigger) jiggerRestPose = new Pose(jigger.transform.position, jigger.transform.rotation);
+            foreach (var cup in rackCups)
+            {
+                if (!cup || !TryGetVisibleBounds(cup.gameObject, out var bounds)) continue;
+                cupRestPoses[cup] = new Pose(cup.transform.position, cup.transform.rotation);
+                cupBottomOffsets[cup] = Quaternion.Inverse(cup.transform.rotation) *
+                    (new Vector3(bounds.center.x, bounds.min.y, bounds.center.z) - cup.transform.position);
+            }
         }
 
         private bool CanUseHeldInput => isActiveAndEnabled && CurrentActionState == ActionState.Stable &&
@@ -77,6 +90,13 @@ namespace CupPrototype.Interaction
             var ray = targetCamera.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out var hit, 1000f, bottleLayers))
             {
+                if (stirStick && hit.collider.GetComponentInParent<StirStickTaste>() == stirStick)
+                {
+                    heldPress = true;
+                    consumedFrame = Time.frameCount;
+                    TryTaste(hit.collider);
+                    return;
+                }
                 if (iceWell && hit.collider.transform.IsChildOf(iceWell))
                 {
                     heldPress = true;
@@ -86,6 +106,13 @@ namespace CupPrototype.Interaction
                 }
                 var bottle = hit.collider.GetComponentInParent<PourableIngredient>();
                 var container = hit.collider.GetComponentInParent<DrinkContainer>();
+                if (container && cupRestPoses.ContainsKey(container))
+                {
+                    heldPress = true;
+                    consumedFrame = Time.frameCount;
+                    TryAcquireCup(container);
+                    return;
+                }
                 var clickedShaker = hit.collider.GetComponentInParent<ShakerPreparation>();
                 if (clickedShaker && clickedShaker == shaker)
                 {
@@ -117,6 +144,59 @@ namespace CupPrototype.Interaction
         }
 
         public bool CanCloseShaker => CanUseHeldInput && shaker && shaker.CanClose;
+
+        public bool TryAcquireCup(DrinkContainer cup)
+        {
+            var record = GetComponent<CurrentDrinkRecord>();
+            if (!CanUseHeldInput || !shaker || !shaker.isActiveAndEnabled || shaker.State != ShakerState.ShakeComplete ||
+                !servePosition || !record || !record.isActiveAndEnabled || !cup || !cup.isActiveAndEnabled ||
+                cup.containerType != DrinkContainer.ContainerType.FinalGlass || !cupRestPoses.ContainsKey(cup) ||
+                record.SelectedGlass == cup || (record.SelectedGlass && record.SelectedGlass.CurrentVolume > 0f)) return false;
+            ReturnServeCup();
+            cup.transform.SetPositionAndRotation(servePosition.position - servePosition.rotation * cupBottomOffsets[cup], servePosition.rotation);
+            record.SelectGlass(cup);
+            Selected = cup.gameObject;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        private void ReturnServeCup()
+        {
+            var record = GetComponent<CurrentDrinkRecord>();
+            var cup = record ? record.SelectedGlass : null;
+            if (cup && cupRestPoses.TryGetValue(cup, out var rest))
+            {
+                cup.transform.SetPositionAndRotation(rest.position, rest.rotation);
+                if (Selected == cup.gameObject) Selected = null;
+            }
+            if (record && cup) record.SelectGlass(null);
+        }
+
+        public bool TryTaste(Collider clicked)
+        {
+            var record = GetComponent<CurrentDrinkRecord>();
+            var container = shaker ? shaker.GetComponent<DrinkContainer>() : null;
+            if (!CanUseHeldInput || !shaker || !shaker.isActiveAndEnabled || shaker.State != ShakerState.Preparing ||
+                !container || !container.isActiveAndEnabled || container.IsEmpty() || !record || !record.isActiveAndEnabled ||
+                !record.CanTasteCurrentVersion || record.ActiveOrder == null || !record.ActiveOrder.Recipe || !stirStick || !clicked || !clicked.enabled ||
+                !clicked.gameObject.activeInHierarchy || clicked.GetComponentInParent<StirStickTaste>() != stirStick) return false;
+            var order = record.ActiveOrder;
+            CurrentActionState = ActionState.Tasting;
+            if (!stirStick.TryPlay(success =>
+            {
+                if (success && record && ReferenceEquals(record.ActiveOrder, order) &&
+                    shaker && shaker.State == ShakerState.Preparing && container && !container.IsEmpty())
+                    record.RecordTaste(TasteFeedbackSystem.GenerateFeedback(container.GetCurrentFlavorProfile(), order.ExpectedFlavor, order.Recipe.flavorTolerance));
+                CurrentActionState = ActionState.Stable;
+                consumedFrame = Time.frameCount;
+            }))
+            {
+                CurrentActionState = ActionState.Stable;
+                return false;
+            }
+            consumedFrame = Time.frameCount;
+            return true;
+        }
         public bool CanOpenShaker => CanUseHeldInput && shaker && shaker.CanOpen;
 
         public bool TryOpenShaker()
@@ -301,6 +381,7 @@ namespace CupPrototype.Interaction
 
         private void OnDisable()
         {
+            if (stirStick) stirStick.Cancel();
             if (shaker) shaker.CancelOpen();
             GetComponent<FlairGestureController>()?.CancelRecording();
             if (shaker) shaker.CancelShake();
@@ -361,6 +442,7 @@ namespace CupPrototype.Interaction
 
         public void SetActionState(ActionState state)
         {
+            if (CurrentActionState == ActionState.Tasting && stirStick) stirStick.Cancel();
             if (CurrentActionState == ActionState.Opening && shaker) shaker.CancelOpen();
             if (shakeGestureTool) GetComponent<FlairGestureController>()?.CancelRecording();
             if (CurrentActionState == ActionState.Shake && shaker) shaker.CancelShake();
@@ -372,6 +454,8 @@ namespace CupPrototype.Interaction
 
         public void ResetPreparation()
         {
+            ReturnServeCup();
+            if (stirStick) stirStick.Cancel();
             GetComponent<FlairGestureController>()?.CancelRecording();
             EndMeasurement();
             if (shaker) shaker.ResetAttempt();
@@ -379,6 +463,8 @@ namespace CupPrototype.Interaction
 
         public void ClearState()
         {
+            ReturnServeCup();
+            if (stirStick) stirStick.Cancel();
             if (shaker) shaker.CancelOpen();
             GetComponent<FlairGestureController>()?.CancelRecording();
             if (shaker) shaker.CancelShake();

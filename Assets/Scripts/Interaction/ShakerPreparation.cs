@@ -26,7 +26,7 @@ namespace CupPrototype.Interaction
         public bool CanClose => isActiveAndEnabled && State == ShakerState.Preparing && lid && transfer == null && closing == null && opening == null;
         public bool CanOpen => isActiveAndEnabled &&
             (State == ShakerState.ReadyToShake || State == ShakerState.ShakeComplete) &&
-            currentDrinkRecord && !currentDrinkRecord.Tasted && lid && prepPosition &&
+            currentDrinkRecord && lid && prepPosition &&
             transfer == null && closing == null && opening == null && !shakingTool;
         public bool ProcessIce => currentDrinkRecord && currentDrinkRecord.ProcessIce;
         private Pose restPose;
@@ -206,7 +206,7 @@ namespace CupPrototype.Interaction
             {
                 float before = target.CurrentVolume;
                 if (source.TransferTo(target, source.CurrentVolume) && target.CurrentVolume > before &&
-                    currentDrinkRecord && currentDrinkRecord.ShakePerformed) currentDrinkRecord.ClearShake();
+                    currentDrinkRecord) currentDrinkRecord.RecordContentChange();
             }
             if (source) yield return MoveJigger(source.transform, pour, jiggerHoldPose);
             FinishTransfer();

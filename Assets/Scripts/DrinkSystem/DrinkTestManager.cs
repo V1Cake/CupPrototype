@@ -779,6 +779,7 @@ namespace CupPrototype.DrinkSystem
         // ===== 快捷键 T：试味 =====
         private void TasteCurrentDrink()
         {
+            if (coordinator && coordinator.isActiveAndEnabled) return;
             DrinkContainer drinkContainer = FindFirstObjectByType<DrinkContainer>();
             if (drinkContainer == null)
             {
