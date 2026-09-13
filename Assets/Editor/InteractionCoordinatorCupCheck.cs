@@ -23,43 +23,42 @@ public static class InteractionCoordinatorCupCheck
     public static void SetupAndRun()
     {
         Require(!Application.isPlaying && !UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty, "save Scene before setup");
+        EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity");
+        GameObject.Find("Cup_Test")?.SetActive(false);
+        GameObject.Find("HighballGlass_02_Prop")?.SetActive(false);
+        Debug.Log("T13 viewport " + Screen.width + "x" + Screen.height + " camera aspect=" + Camera.main.aspect);
         var zone = GameObject.Find("ServiceZone").transform;
         zone.position = new Vector3(.62f, .90f, .97f);
         var cups = zone.GetComponentsInChildren<Transform>().Where(t => t.name.EndsWith("_Prop") && t.name.Contains("Glass")).Select(t =>
         {
-            var cup = t.GetComponent<DrinkContainer>(); if (!cup) cup = t.gameObject.AddComponent<DrinkContainer>();
-            cup.containerType = DrinkContainer.ContainerType.FinalGlass; cup.containerName = t.name;
+            var cup = t.GetComponent<DrinkContainer>(); Require(cup, "existing Cup container");
+            Require(cup.containerType == DrinkContainer.ContainerType.FinalGlass, "existing FinalGlass");
             var bounds = VisibleBounds(t.gameObject);
-            var collider = t.GetComponent<BoxCollider>(); if (!collider) collider = t.gameObject.AddComponent<BoxCollider>();
-            collider.center = t.InverseTransformPoint(bounds.center);
-            collider.size = new Vector3(bounds.size.x / t.lossyScale.x, bounds.size.y / t.lossyScale.y, bounds.size.z / t.lossyScale.z);
+            Require(t.GetComponent<BoxCollider>(), "existing unchanged Cup collider");
             var display = t.name switch
             {
                 "CoupeGlass_01_Prop" => new Vector2(.47f, .88f),
-                "HighballGlass_01_Prop" => new Vector2(.56f, .83f),
-                "HighballGlass_02_Prop" => new Vector2(.67f, .89f),
-                _ => new Vector2(.74f, .84f)
+                "HighballGlass_01_Prop" => new Vector2(.59f, .84f),
+                _ => new Vector2(.71f, .87f)
             };
             t.position += new Vector3(display.x - bounds.center.x, 0, display.y - bounds.center.z);
             return cup;
         }).OrderBy(c => c.name).ToArray();
-        Require(cups.Length == 4, "four existing Rack cups");
+        Require(cups.Length == 3, "three distinct Rack cups");
         var anchor = GameObject.Find("ServePosition"); if (!anchor) anchor = new GameObject("ServePosition");
         anchor.transform.SetPositionAndRotation(new Vector3(-.20f, .925f, .85f), Quaternion.identity);
         var coordinator = UnityEngine.Object.FindAnyObjectByType<InteractionCoordinator>();
         var so = new SerializedObject(coordinator); var list = so.FindProperty("rackCups"); list.arraySize = cups.Length;
         for (int i = 0; i < cups.Length; i++) list.GetArrayElementAtIndex(i).objectReferenceValue = cups[i];
         so.FindProperty("servePosition").objectReferenceValue = anchor.transform; so.ApplyModifiedPropertiesWithoutUndo();
-        Physics.SyncTransforms();
-        foreach (var cup in cups) CheckClickable(cup.gameObject);
-        CheckExisting();
-        foreach (var renderer in zone.GetComponentsInChildren<Renderer>()) CheckVisible(renderer.bounds, renderer.name);
+        // Viewport checks run in Play Mode, after the batch Game View resolution is applied.
         EditorSceneManager.MarkSceneDirty(zone.gameObject.scene); EditorSceneManager.SaveScene(zone.gameObject.scene);
         RunBatch();
     }
     public static void RunBatch()
     {
         Require(!Application.isPlaying && !UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty, "save Scene before check");
+        if (Application.isBatchMode) PlayModeWindow.SetCustomRenderingResolution(1920, 1080, "Interaction Check");
         checks = null; error = false; SessionState.SetBool(Key, true); Hook();
         EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity"); EditorApplication.isPlaying = true;
     }
@@ -85,15 +84,18 @@ public static class InteractionCoordinatorCupCheck
         var list = so.FindProperty("rackCups"); var cups = Enumerable.Range(0, list.arraySize).Select(i => (DrinkContainer)list.GetArrayElementAtIndex(i).objectReferenceValue).ToArray();
         var rest = cups.Select(cup => new Pose(cup.transform.position, cup.transform.rotation)).ToArray();
         var anchor = (Transform)so.FindProperty("servePosition").objectReferenceValue;
-        Require(cups.Length == 4 && !record.SelectedGlass, "initial four Rack cups, no selected glass");
+        Require(cups.Length == 3 && !record.SelectedGlass, "initial three Rack cups, no selected glass");
         foreach (var cup in cups) { CheckClickable(cup.gameObject); Require(!cup.GetComponent<FlairableTool>(), "no Rack or served Cup Flair target"); }
         CheckExisting();
-        Require(!c.TryAcquireCup(cups[0]), "Rest rejects Cup");
-        Require(c.TryAcquireShaker(shaker) && !c.TryAcquireCup(cups[0]), "Preparing rejects Cup");
+        foreach (var renderer in GameObject.Find("ServiceZone").GetComponentsInChildren<Renderer>()) CheckVisible(renderer.bounds, renderer.name);
+        Require(c.TryAcquireCup(cups[0]), "Rest allows Cup without Shake/Taste");
+        Require(c.TryAcquireShaker(shaker) && c.TryAcquireCup(cups[1]), "Preparing allows Cup");
         Require(c.TryCloseShaker() && !c.TryAcquireCup(cups[0]), "Closing rejects Cup"); while(c.CurrentActionState != ActionState.Stable) yield return null;
-        Require(!c.TryAcquireCup(cups[0]), "Ready rejects Cup");
+        Require(c.TryAcquireCup(cups[2]), "Ready allows Cup");
         Require(c.TryBeginShakeGesture(shaker.GetComponent<FlairableTool>()) && c.CompleteShakeGesture(new GestureMatchResult { isMatched = true, templateId = "ShakerRoll_01", gestureType = FlairGestureType.Circle }), "Shake fixture");
         while(c.CurrentActionState != ActionState.Stable) yield return null;
+        Require(shaker.State == ShakerState.ShakeComplete && !record.Tasted, "direct selection after Shake: no Open or Taste required");
+        Require(UnityEngine.Object.FindObjectsByType<DrinkContainer>().Count(x => x.containerType == DrinkContainer.ContainerType.FinalGlass) == 3, "only three active Cup instances");
         int version = record.PreparationVersion; bool tasted = record.Tasted;
         for (int i = 0; i < cups.Length; i++)
         {
@@ -107,18 +109,18 @@ public static class InteractionCoordinatorCupCheck
             Require(record.ShakePerformed && record.Tasted == tasted && record.PreparationVersion == version, "Cup change does not change preparation");
         }
         ingredient = ScriptableObject.CreateInstance<IngredientData>(); ingredient.sweetness = 12;
-        cups[3].AddIngredient(ingredient, .001f, false);
-        var contents = JsonUtility.ToJson(cups[3]); var selectedPose = new Pose(cups[3].transform.position, cups[3].transform.rotation);
-        Require(!c.TryAcquireCup(cups[0]) && record.SelectedGlass == cups[3] && contents == JsonUtility.ToJson(cups[3]) && At(cups[3].transform, selectedPose) && At(cups[0].transform, rest[0]), "any positive volume rejects replacement without mutation");
+        cups[2].AddIngredient(ingredient, .001f, false);
+        var contents = JsonUtility.ToJson(cups[2]); var selectedPose = new Pose(cups[2].transform.position, cups[2].transform.rotation);
+        Require(!c.TryAcquireCup(cups[0]) && record.SelectedGlass == cups[2] && contents == JsonUtility.ToJson(cups[2]) && At(cups[2].transform, selectedPose) && At(cups[0].transform, rest[0]), "any positive volume rejects replacement without mutation");
         typeof(DrinkTestManager).GetMethod("ClearCurrentDrink", BindingFlags.NonPublic|BindingFlags.Instance).Invoke(c.GetComponent<DrinkTestManager>(), null);
-        Require(!record.SelectedGlass && At(cups[3].transform, rest[3]) && cups[3].CurrentVolume == 0, "R returns and clears selected Cup");
+        Require(!record.SelectedGlass && At(cups[2].transform, rest[2]) && cups[2].CurrentVolume == 0, "R returns and clears selected Cup");
         // Repeat with a new attempt and exercise the order-switch reset path.
         Require(c.TryAcquireShaker(shaker) && c.TryCloseShaker(), "new attempt Close"); while(c.CurrentActionState != ActionState.Stable) yield return null;
         Require(c.TryBeginShakeGesture(shaker.GetComponent<FlairableTool>()) && c.CompleteShakeGesture(new GestureMatchResult { isMatched=true, templateId="ShakerRoll_01", gestureType=FlairGestureType.Circle }), "new attempt Shake"); while(c.CurrentActionState != ActionState.Stable) yield return null;
         Require(c.TryAcquireCup(cups[1]), "new attempt select");
         UnityEngine.Object.FindAnyObjectByType<DemoRoundManager>().StartNextTarget();
         Require(!record.SelectedGlass && At(cups[1].transform, rest[1]), "order switch returns Cup");
-        Debug.Log("T13_AUTOMATED_PASS: four visible clickable Rack cups; existing tools remain clickable; ShakeComplete/Stable gating; all Serve poses; empty swaps; positive-volume rejection without mutation; R/order return; no preparation changes or Cup Flair");
+        Debug.Log("T13_AUTOMATED_PASS: three visible clickable Rack cups; existing tools remain clickable; Stable gating independent of Shaker; all Serve poses; empty swaps; positive-volume rejection without mutation; R/order return; no preparation changes or Cup Flair");
     }
     static bool At(Transform t, Pose p) => Vector3.Distance(t.position,p.position)<.000001f && Quaternion.Angle(t.rotation,p.rotation)<.001f;
     static Bounds VisibleBounds(GameObject go)

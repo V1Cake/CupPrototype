@@ -21,7 +21,7 @@
   - 调整后必须复查 Bottle、Jigger、Shaker、Ice Well 等既有交互物体，不能因新布局导致射线遮挡或失去点击。
 
 - **Cup Acquire**
-  - 仅在 `Shaker = ShakeComplete` 且 `ActionState = Stable` 时允许从 Cup Rack 选杯。
+  - 在 `ActionState = Stable` 时允许从 Cup Rack 选杯，不依赖 Shaker 状态，也不要求 Open / Shake / Taste。
   - 点击任意 Cup：
     - 记录该 Cup 为当前 `SelectedGlass`；
     - Cup 从 Rack 移到固定 `ServePosition`；
@@ -57,38 +57,36 @@
 
 **Manual:** Game View 中杯槽与水槽位置可辨认；杯子容易点击；选杯后移动到合理 Serve Position；原有 Bottle/Jigger/Shaker 操作不被场景调整破坏；无新增 Error。
 
-## Implementation Report
-
-### Confirmed Layout Approval
-Four existing cups may be staggered slightly using Position / Rotation only. No Camera, Scale or collider reshaping to solve occlusion. The first blocked layout was superseded by the user-approved staggered layout.
+## Implementation Report — Cleanup 2026-09-12
 
 ### Modified Files
-- `Assets/Scripts/Interaction/InteractionCoordinator.cs`
-- `Assets/Scripts/Interaction/CurrentDrinkRecord.cs`
 - `Assets/Scenes/SampleScene.unity`
-- `Assets/Editor/InteractionCoordinatorCupCheck.cs` + `.meta`
+- `Assets/Editor/InteractionCoordinatorCupCheck.cs`
 - This ticket.
 
-### What Changed
-- ServiceZone position: `(0.62, 0.90, 0.97)`, bringing Rack and Sink/Wash together into view.
-- Four existing cup mesh centers use staggered world X/Z positions: Coupe `(0.47, 0.88)`, Highball 01 `(0.56, 0.83)`, Highball 02 `(0.67, 0.89)`, Rocks `(0.74, 0.84)`. Heights, rotations and scales remain unchanged.
-- The four previously decorative cups receive standard FinalGlass DrinkContainer components and mesh-sized BoxColliders. Collider geometry is unchanged from the initial T13 setup; the overlap fix uses cup Transform offsets only. Existing DrinkContainer default capacity remains unchanged; no liquid visuals or pour flow are added here.
-- ServePosition is `(-0.20, 0.925, 0.85)` with identity rotation. Each cup's actual visible bottom aligns to it, preserving model/root offsets.
-- Stable + ShakeComplete selects an actual configured Rack cup. SelectedGlass stores the DrinkContainer reference identifying the chosen cup. Empty replacement returns the old cup to its cached Slot pose; any positive current volume rejects replacement without changing data.
-- R / order switch return the current cup and clear SelectedGlass. Cup selection does not change preparation version, Taste or Shake facts. No Cup Flair target is added.
+### Current Layout
+- Disabled legacy standalone `Cup_Test` and duplicate `HighballGlass_02_Prop` (instances retained for reversibility).
+- Three active Rack cups remain: Coupe, Highball 01, Rocks. Coordinator Rack references contain only these three.
+- Cup visible mesh center world X/Z: Coupe `(0.47, 0.88)`, Highball `(0.59, 0.84)`, Rocks `(0.71, 0.87)`. Existing height, rotation, Scale and BoxCollider geometry are preserved.
+- ServiceZone and ServePosition retain the accepted positions. No Camera, Hold Anchor, Measurement UI, DrinkSystem or Outline changes.
+- T14 removes the Shaker state gate from TryAcquireCup. Stable plus normal object/empty-swap validity remains required; Open, Shake and Taste are not prerequisites.
 
-### Validation
-- T13 Play Mode check passed: four complete visible bounds / correct center ray hits; six main Bottle, Jigger, Shaker and Ice Well clicks; all four Serve poses; state gates; empty swaps / exact old-cup return; 0.001-volume replacement rejection; R / order reset.
-- Off-screen legacy test bottles remain in their original positions; tests require the six main visible bottles to remain clickable. Existing bottle lower Bounds may extend below the viewport; this ticket does not change those poses.
-- Re-run with `InteractionCoordinatorCupCheck.RunBatch` from saved Edit Mode. SetupAndRun is the scene setup helper.
+### Automated Check
+- T13 asserts exactly three active FinalGlass instances, direct selection after successful Shake without Open/Taste, center plus four nearby ray hits at Rack/Serve, original main-tool clicks, empty replacement, nonempty rejection, R/order return.
+- Batch checks configure a 1920×1080 Game View through UnityEditor.PlayModeWindow, without changing Camera. Default batch 640×480 does not match the established 16:9 Game View.
+- Requested regression scope: T13 + T10/T12 only; no T11 or full regression.
 
 ### Manual Check — Pending
-1. Confirm all four Rack cups are visibly grouped, easy to click, and the Sink/Wash area is recognizable.
-2. Close + Shake, then choose each cup. Verify visible Serve placement and empty-cup replacement.
-3. Check Bottle / Jigger Measurement, Shaker and Ice Well interactions remain usable with a cup at ServePosition.
-4. Press R or switch order: the cup returns to its Rack Slot.
+1. Confirm the legacy standalone cup and duplicate Highball are no longer visible; three distinct cups remain grouped on the Rack.
+2. Directly click a Rack cup before Shake, Open or Taste. Verify ServePosition is clear and empty-cup replacement works.
+3. Confirm normal Bottle/Jigger/Shaker/Ice Well operations and Sink/Wash visibility.
+4. R / order switch returns the current cup to its Slot.
 
-### Known Limitations
-No Serve Ice, Shaker-to-Cup Pour, Submit, Cup Flair or layout polish. Nonempty replacement is automated with injected test liquid because Pour is a later ticket. Manual visual approval remains required.
-- Final verification: T10, T11 and T12 direct dependency checks PASS; no full earlier-ticket regression run. No runtime Error / Exception during successful checks. Initial layout/check failures were corrected. Renderer / Shader / Camera / Hold Anchors / Measurement UI remain unchanged.
-- Final stagger refinement: Highball 02 moved another 0.02 on world X. Each of the four Rack cups passes its center plus four nearby viewport-offset rays (20/20); the final T13 rerun also checks neighboring rays at each Serve pose and PASS. No collider reshaping or Scale change was used.
+No Serve Ice, Pour, Submit or Cup Flair implementation. Ticket remains open pending manual approval.
+### Cleanup Results — Automated PASS / Manual Pending
+- T13, T10 and T12 batch checks PASS; no additional regression suite run.
+- All three cups pass center plus four neighboring ray checks at Rack and ServePosition. Direct ShakeComplete selection without Open/Taste, empty swaps, nonempty rejection, R and order return passed.
+- Scene comparison confirms zero changed Camera / Collider serialized blocks. Only cup activation, Rack references and remaining cup Positions changed after serialization cleanup.
+- Initial batch 640×480 viewport checks failed before the matching Game View test resolution was configured; final runs passed without runtime Error / Exception. Existing Unity startup/assembly-discovery warnings remain outside gameplay changes.
+
+- T14 confirmed: replacing an empty iced Serve Cup clears its ServeIce before returning it. The new Cup starts without Serve Ice; ProcessIce and Shaker preparation are unchanged. Positive liquid volume still prohibits replacement.

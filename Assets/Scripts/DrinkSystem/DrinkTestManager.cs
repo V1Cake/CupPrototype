@@ -816,6 +816,12 @@ namespace CupPrototype.DrinkSystem
                 return;
             }
 
+            EvaluateFinishedDrink(drinkContainer, targetDrink);
+        }
+
+        public void EvaluateFinishedDrink(DrinkContainer drinkContainer, TargetDrinkData targetDrink)
+        {
+            if (!drinkContainer || !targetDrink) return;
             Debug.Log($"[DrinkTestManager] Scoring container: {drinkContainer.DisplayName}, MixState={drinkContainer.mixState}, Ingredients: {drinkContainer.GetIngredientDebugString()}", drinkContainer);
 
             DrinkScoreResult scoreResult = DrinkScoreSystem.ScoreDrink(drinkContainer, targetDrink);

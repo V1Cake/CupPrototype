@@ -12,6 +12,8 @@ namespace CupPrototype.UI
         [SerializeField] private Button openButton;
         [SerializeField] private TMP_Text tasteFeedback;
         [SerializeField] private GameObject tasteFeedbackRoot;
+        [SerializeField] private TMP_Text shakeIceLabel;
+        [SerializeField] private TMP_Text serveIceLabel;
         private CurrentDrinkRecord record;
         public bool IsCloseVisible => closeButton && closeButton.gameObject.activeInHierarchy;
         public bool IsOpenVisible => openButton && openButton.gameObject.activeInHierarchy;
@@ -34,6 +36,8 @@ namespace CupPrototype.UI
         private void LateUpdate() => Refresh();
         public void Refresh()
         {
+            if (shakeIceLabel) shakeIceLabel.text = record && record.ProcessIce ? "SHAKE ICE\nADDED" : "SHAKE ICE";
+            if (serveIceLabel) serveIceLabel.text = record && record.ServeIce ? "SERVE ICE\nADDED" : "SERVE ICE";
             if (tasteFeedback) tasteFeedback.text = record ? record.TasteFeedback : string.Empty;
             if (tasteFeedbackRoot) tasteFeedbackRoot.SetActive(record && !string.IsNullOrEmpty(record.TasteFeedback));
             if (closeButton) closeButton.gameObject.SetActive(coordinator && coordinator.CanCloseShaker);

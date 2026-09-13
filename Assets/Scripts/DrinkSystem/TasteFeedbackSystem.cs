@@ -6,6 +6,15 @@ namespace CupPrototype.DrinkSystem
     // 把风味数值转换成原型阶段可读的自然语言反馈。
     public static class TasteFeedbackSystem
     {
+        public const string MissingIngredientFeedback = "Something seems to be missing.";
+        public static string GenerateFeedback(DrinkContainer actual, TargetDrinkData recipe)
+        {
+            if (recipe.requiredIngredients != null)
+                foreach (var ingredient in recipe.requiredIngredients)
+                    if (ingredient && !actual.ContainsIngredient(ingredient)) return MissingIngredientFeedback;
+            return GenerateFeedback(actual.GetCurrentFlavorProfile(), recipe.targetFlavor, recipe.flavorTolerance);
+        }
+
         public static string GenerateFeedback(FlavorProfile actual, FlavorProfile expected, float tolerance)
         {
             var differences = new[]

@@ -23,6 +23,92 @@ namespace CupPrototype.Interaction
         private Action closeCompleted;
         private Coroutine opening;
         private Action openCompleted;
+        private Coroutine pouring;
+        private Action<bool> pourCompleted;
+        private DrinkContainer pourTarget;
+        public bool HasShakeIngredients
+        {
+            get
+            {
+                var container = GetComponent<DrinkContainer>();
+                IngredientData first = null;
+                if (!container) return false;
+                foreach (var entry in container.Ingredients)
+                {
+                    if (!entry.ingredient || entry.amount <= 0) continue;
+                    if (first && entry.ingredient != first) return true;
+                    first = entry.ingredient;
+                }
+                return false;
+            }
+        }
+        public bool TryServeHold()
+        {
+            if (!isActiveAndEnabled || State != ShakerState.ShakeComplete || !shakePosition || pouring != null) return false;
+            transform.SetPositionAndRotation(shakePosition.position, shakePosition.rotation);
+            return true;
+        }
+
+        public void ReturnServeHold()
+        {
+            if (prepPosition) transform.SetPositionAndRotation(prepPosition.position, prepPosition.rotation);
+        }
+
+        public bool TryPour(DrinkContainer target, Action<bool> completed)
+        {
+            var source = GetComponent<DrinkContainer>();
+            if (!isActiveAndEnabled || State != ShakerState.ShakeComplete || pouring != null ||
+                !lid || !source || !source.isActiveAndEnabled || !target || !target.isActiveAndEnabled ||
+                target.containerType != DrinkContainer.ContainerType.FinalGlass || target.CurrentVolume > 0 ||
+                target.IsFull() || !target.CanReceiveFrom(source, out _)) return false;
+            var body = GetComponentInChildren<Collider>();
+            var cup = target.GetComponentInChildren<Collider>();
+            if (!body || !cup) return false;
+            var mouth = transform.InverseTransformPoint(new Vector3(body.bounds.center.x, body.bounds.max.y, body.bounds.center.z));
+            var rotation = Quaternion.AngleAxis(110, Vector3.forward);
+            var spout = new Vector3(cup.bounds.center.x, cup.bounds.max.y + .06f, cup.bounds.center.z);
+            var pose = new Pose(spout - rotation * Vector3.Scale(mouth, transform.lossyScale), rotation);
+            pourTarget = target;
+            pourCompleted = completed;
+            pouring = StartCoroutine(Pour(source, target, pose));
+            return true;
+        }
+
+        private IEnumerator Pour(DrinkContainer source, DrinkContainer target, Pose pose)
+        {
+            // A small lid gap represents straining; it does not reopen preparation.
+            lid.localPosition = Vector3.Lerp(closedLidLocalPosition, openLidLocalPosition, .15f);
+            yield return MoveJigger(transform, new Pose(transform.position, transform.rotation), pose);
+            while (source && target && target.isActiveAndEnabled && !source.IsEmpty() && !target.IsFull())
+            {
+                if (Time.deltaTime <= 0) { yield return null; continue; }
+                if (!source.TransferTo(target, 60f * Time.deltaTime)) break;
+                yield return null;
+            }
+            bool success = source && target && target.isActiveAndEnabled && (source.IsEmpty() || target.IsFull());
+            yield return MoveJigger(transform, new Pose(transform.position, transform.rotation), restPose);
+            if (source) source.Clear(); // Any remainder becomes Waste only on return.
+            pouring = null;
+            pourTarget = null;
+            ResetToRest();
+            var completed = pourCompleted;
+            pourCompleted = null;
+            completed?.Invoke(success);
+        }
+
+        public void CancelPour()
+        {
+            if (pouring == null) return;
+            StopCoroutine(pouring);
+            pouring = null;
+            if (pourTarget) pourTarget.Clear();
+            pourTarget = null;
+            GetComponent<DrinkContainer>()?.Clear();
+            ResetToRest();
+            var completed = pourCompleted;
+            pourCompleted = null;
+            completed?.Invoke(false);
+        }
         public bool CanClose => isActiveAndEnabled && State == ShakerState.Preparing && lid && transfer == null && closing == null && opening == null;
         public bool CanOpen => isActiveAndEnabled &&
             (State == ShakerState.ReadyToShake || State == ShakerState.ShakeComplete) &&
@@ -73,7 +159,7 @@ namespace CupPrototype.Interaction
 
         public bool TryShake(FlairableTool tool, FlairActionDefinition action, Action<bool> completed)
         {
-            if (!isActiveAndEnabled || State != ShakerState.ReadyToShake || shakingTool || opening != null ||
+            if (!isActiveAndEnabled || State != ShakerState.ReadyToShake || !HasShakeIngredients || shakingTool || opening != null ||
                 !shakePosition || !prepPosition || !currentDrinkRecord || !currentDrinkRecord.isActiveAndEnabled ||
                 !tool || tool.gameObject != gameObject) return false;
             shakingTool = tool;
@@ -86,6 +172,7 @@ namespace CupPrototype.Interaction
                 {
                     State = ShakerState.ShakeComplete;
                     currentDrinkRecord.RecordShake();
+                    TryServeHold();
                 }
                 completed?.Invoke(succeeded);
             })) return true;
@@ -239,7 +326,7 @@ namespace CupPrototype.Interaction
             FinishTransfer();
         }
 
-        private void OnDisable() { CancelTransfer(); CancelClose(); CancelShake(); CancelOpen(); }
+        private void OnDisable() { CancelPour(); CancelTransfer(); CancelClose(); CancelShake(); CancelOpen(); }
 
         public void ResetAttempt()
         {
@@ -249,6 +336,7 @@ namespace CupPrototype.Interaction
 
         public void ResetToRest()
         {
+            CancelPour();
             CancelOpen();
             CancelShake();
             CancelTransfer();

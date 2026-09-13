@@ -14,6 +14,17 @@ namespace CupPrototype.DrinkSystem
         public float liquidBottomOffset = 0.08f;
         public bool hideWhenEmpty = true;
 
+        [Header("Cup Surface (leave disabled for existing tools)")]
+        public bool useCupSurface;
+        public float surfaceMinHeight;
+        public float surfaceMaxHeight;
+        public AnimationCurve surfaceWidthByFill = AnimationCurve.Linear(0, 1, 1, 1);
+        public Color baseColor = new Color(.85f, .36f, .08f, 1);
+        private MaterialPropertyBlock surfaceProperties;
+        private Mesh cupMesh;
+        private Vector3[] cupVertices;
+        private const int CupSegments = 32, CupRings = 8;
+
         // ===== 运行时缓存 =====
         // 记录初始位置和缩放，用于保证液体底部固定、只向上升高。
         private Vector3 initialLocalPosition;
@@ -54,6 +65,25 @@ namespace CupPrototype.DrinkSystem
 
             initialLocalPosition = liquidVisual.localPosition;
             initialLocalScale = liquidVisual.localScale;
+            if (useCupSurface)
+            {
+                cupVertices = new Vector3[(CupRings + 1) * CupSegments + 2];
+                var triangles = new System.Collections.Generic.List<int>();
+                for (int ring = 0; ring < CupRings; ring++)
+                    for (int i = 0; i < CupSegments; i++)
+                    {
+                        int a = ring * CupSegments + i, b = ring * CupSegments + (i + 1) % CupSegments;
+                        triangles.AddRange(new[] { a, a + CupSegments, b, b, a + CupSegments, b + CupSegments });
+                    }
+                for (int i = 0; i < CupSegments; i++)
+                {
+                    int next = (i + 1) % CupSegments, top = CupRings * CupSegments;
+                    triangles.AddRange(new[] { cupVertices.Length - 2, i, next, cupVertices.Length - 1, top + next, top + i });
+                }
+                cupMesh = new Mesh { name = "Cup Liquid Volume" };
+                cupMesh.vertices = cupVertices; cupMesh.triangles = triangles.ToArray();
+                liquidVisual.GetComponent<MeshFilter>().sharedMesh = cupMesh;
+            }
             liquidBottomLocalY = initialLocalPosition.y - initialLocalScale.y + liquidBottomOffset;
             initialized = true;
 
@@ -92,6 +122,37 @@ namespace CupPrototype.DrinkSystem
             }
 
             liquidVisual.gameObject.SetActive(true);
+
+            if (useCupSurface)
+            {
+                var position = initialLocalPosition;
+                position.y = surfaceMinHeight;
+                liquidVisual.localPosition = position;
+                liquidVisual.localScale = initialLocalScale;
+                for (int ring = 0; ring <= CupRings; ring++)
+                {
+                    float fill = volumeRatio * ring / CupRings;
+                    float radius = .5f * Mathf.Max(0, surfaceWidthByFill.Evaluate(fill));
+                    float height = (surfaceMaxHeight - surfaceMinHeight) * fill / initialLocalScale.y;
+                    for (int i = 0; i < CupSegments; i++)
+                    {
+                        float angle = i * Mathf.PI * 2 / CupSegments;
+                        cupVertices[ring * CupSegments + i] = new Vector3(Mathf.Cos(angle) * radius, height, Mathf.Sin(angle) * radius);
+                    }
+                }
+                cupVertices[cupVertices.Length - 2] = Vector3.zero;
+                cupVertices[cupVertices.Length - 1] = Vector3.up * (surfaceMaxHeight - surfaceMinHeight) * volumeRatio / initialLocalScale.y;
+                cupMesh.vertices = cupVertices; cupMesh.RecalculateNormals(); cupMesh.RecalculateBounds();
+                if (liquidRenderer)
+                {
+                    surfaceProperties ??= new MaterialPropertyBlock();
+                    liquidRenderer.GetPropertyBlock(surfaceProperties);
+                    surfaceProperties.SetColor("_BaseColor", baseColor);
+                    surfaceProperties.SetColor("_Color", baseColor);
+                    liquidRenderer.SetPropertyBlock(surfaceProperties);
+                }
+                return;
+            }
 
             float newScaleY = Mathf.Lerp(liquidMinScaleY, liquidMaxScaleY, volumeRatio);
             SetLiquidTransform(newScaleY);
@@ -135,6 +196,11 @@ namespace CupPrototype.DrinkSystem
             Vector3 position = initialLocalPosition;
             position.y = liquidBottomLocalY + scaleY;
             liquidVisual.localPosition = position;
+        }
+
+        private void OnDestroy()
+        {
+            if (cupMesh) Destroy(cupMesh);
         }
     }
 }

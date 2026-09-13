@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using CupPrototype.DrinkSystem;
 using CupPrototype.Flair;
 using CupPrototype.UI;
+using CupPrototype.Game;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -32,9 +33,15 @@ namespace CupPrototype.Interaction
         [SerializeField] private MeasurementCameraLock measurementCamera;
         [SerializeField] private ShakerPreparation shaker;
         [SerializeField] private Transform iceWell;
+        [SerializeField] private Transform serveIceWell;
         [SerializeField] private StirStickTaste stirStick;
         [SerializeField] private DrinkContainer[] rackCups = System.Array.Empty<DrinkContainer>();
         [SerializeField] private Transform servePosition;
+        [SerializeField] private Transform finalHoldAnchor;
+        [SerializeField] private Collider serviceZone;
+        [SerializeField] private Transform servicePosition;
+        [SerializeField] private DemoRoundManager roundManager;
+        private bool IsSubmitted => GetComponent<CurrentDrinkRecord>() is { Submitted: true };
         private readonly Dictionary<DrinkContainer, Pose> cupRestPoses = new();
         private readonly Dictionary<DrinkContainer, Vector3> cupBottomOffsets = new();
         [SerializeField] private LayerMask bottleLayers = ~0;
@@ -48,7 +55,7 @@ namespace CupPrototype.Interaction
         private FlairableTool shakeGestureTool;
 
         public bool OwnsHeldInput => isActiveAndEnabled &&
-            (CurrentActionState != ActionState.Stable || PrimaryHeld != null || SecondaryHeld != null || heldPress || consumedFrame == Time.frameCount);
+            (IsSubmitted || CurrentActionState != ActionState.Stable || PrimaryHeld != null || SecondaryHeld != null || heldPress || consumedFrame == Time.frameCount);
         public GameObject Selected { get; private set; }
         public GameObject PrimaryHeld { get; private set; }
         public GameObject SecondaryHeld { get; private set; }
@@ -71,7 +78,7 @@ namespace CupPrototype.Interaction
             }
         }
 
-        private bool CanUseHeldInput => isActiveAndEnabled && CurrentActionState == ActionState.Stable &&
+        private bool CanUseHeldInput => isActiveAndEnabled && !IsSubmitted && CurrentActionState == ActionState.Stable &&
             (!legacyInteraction || legacyInteraction.enabled) &&
             !FlairGestureController.IsFlairInputActive && !FlairGestureController.IsFlairPlaying &&
             !GestureTemplateRecorder.IsTemplateRecording;
@@ -90,11 +97,24 @@ namespace CupPrototype.Interaction
             var ray = targetCamera.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out var hit, 1000f, bottleLayers))
             {
+                if (hit.collider == serviceZone)
+                {
+                    heldPress = true; consumedFrame = Time.frameCount;
+                    TrySubmitCup(hit.collider);
+                    return;
+                }
                 if (stirStick && hit.collider.GetComponentInParent<StirStickTaste>() == stirStick)
                 {
                     heldPress = true;
                     consumedFrame = Time.frameCount;
                     TryTaste(hit.collider);
+                    return;
+                }
+                if (serveIceWell && hit.collider.transform.IsChildOf(serveIceWell))
+                {
+                    heldPress = true;
+                    consumedFrame = Time.frameCount;
+                    TryAddServeIce(hit.collider);
                     return;
                 }
                 if (iceWell && hit.collider.transform.IsChildOf(iceWell))
@@ -110,7 +130,9 @@ namespace CupPrototype.Interaction
                 {
                     heldPress = true;
                     consumedFrame = Time.frameCount;
-                    TryAcquireCup(container);
+                    if (GetComponent<CurrentDrinkRecord>().PourCompleted) TryAcquireFinishedCup(container);
+                    else if (shaker && PrimaryHeld == shaker.gameObject && GetComponent<CurrentDrinkRecord>().SelectedGlass == container) TryStartAutoPour(container);
+                    else TryAcquireCup(container);
                     return;
                 }
                 var clickedShaker = hit.collider.GetComponentInParent<ShakerPreparation>();
@@ -118,7 +140,8 @@ namespace CupPrototype.Interaction
                 {
                     heldPress = true;
                     consumedFrame = Time.frameCount;
-                    if (jigger && (PrimaryHeld == jigger.gameObject || SecondaryHeld == jigger.gameObject)) TryStartJiggerTransfer(clickedShaker);
+                    if (clickedShaker.State == ShakerState.ShakeComplete) TryAcquireServeShaker(clickedShaker);
+                    else if (jigger && (PrimaryHeld == jigger.gameObject || SecondaryHeld == jigger.gameObject)) TryStartJiggerTransfer(clickedShaker);
                     else TryAcquireShaker(clickedShaker);
                     return;
                 }
@@ -133,6 +156,8 @@ namespace CupPrototype.Interaction
 
         private void LateUpdate()
         {
+            if (PrimaryHeld && finalHoldAnchor && PrimaryHeld.TryGetComponent<DrinkContainer>(out var cup) && cupRestPoses.ContainsKey(cup))
+                PlaceCup(cup, finalHoldAnchor);
             if (PrimaryHeld && bottleHoldAnchor && PrimaryHeld.TryGetComponent<PourableIngredient>(out _))
             {
                 var pose = CurrentActionState == ActionState.Measurement
@@ -145,11 +170,74 @@ namespace CupPrototype.Interaction
 
         public bool CanCloseShaker => CanUseHeldInput && shaker && shaker.CanClose;
 
+        private void PlaceCup(DrinkContainer cup, Transform anchor) => cup.transform.SetPositionAndRotation(
+            anchor.position - anchor.rotation * cupBottomOffsets[cup], anchor.rotation);
+
+        public bool TryAcquireFinishedCup(DrinkContainer cup)
+        {
+            var record = GetComponent<CurrentDrinkRecord>();
+            if (!CanUseHeldInput || PrimaryHeld || SecondaryHeld || !finalHoldAnchor || !record ||
+                !record.PourCompleted || !cup || !cup.isActiveAndEnabled || cup.CurrentVolume <= 0 ||
+                record.SelectedGlass != cup || !cupRestPoses.ContainsKey(cup)) return false;
+            PrimaryHeld = Selected = cup.gameObject;
+            PlaceCup(cup, finalHoldAnchor);
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TrySubmitCup(Collider clicked)
+        {
+            var record = GetComponent<CurrentDrinkRecord>();
+            var cup = record ? record.SelectedGlass : null;
+            if (!CanUseHeldInput || !serviceZone || clicked != serviceZone || !clicked.enabled ||
+                !clicked.gameObject.activeInHierarchy || !servicePosition || !roundManager || !cup ||
+                PrimaryHeld != cup.gameObject || SecondaryHeld || !cupRestPoses.ContainsKey(cup)) return false;
+            if (!roundManager.TrySubmitFinishedDrink(record.ActiveOrder, record, cup)) return false;
+            PlaceCup(cup, servicePosition);
+            PrimaryHeld = SecondaryHeld = Selected = null;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryAcquireServeShaker(ShakerPreparation target)
+        {
+            var record = GetComponent<CurrentDrinkRecord>();
+            if (!CanUseHeldInput || !shaker || target != shaker || PrimaryHeld || SecondaryHeld ||
+                !record || record.PourCompleted || !record.SelectedGlass || record.SelectedGlass.CurrentVolume > 0 ||
+                !shaker.TryServeHold()) return false;
+            Selected = PrimaryHeld = shaker.gameObject;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryStartAutoPour(DrinkContainer cup)
+        {
+            var record = GetComponent<CurrentDrinkRecord>();
+            if (!CanUseHeldInput || !shaker || PrimaryHeld != shaker.gameObject || SecondaryHeld ||
+                !record || !record.isActiveAndEnabled || record.PourCompleted || !cup || record.SelectedGlass != cup ||
+                cup.CurrentVolume > 0 || shaker.State != ShakerState.ShakeComplete) return false;
+            CurrentActionState = ActionState.AutoPour;
+            if (!shaker.TryPour(cup, success =>
+            {
+                PrimaryHeld = SecondaryHeld = null;
+                Selected = success ? cup.gameObject : null;
+                if (success && record) record.RecordPour();
+                CurrentActionState = ActionState.Stable;
+                consumedFrame = Time.frameCount;
+            }))
+            {
+                CurrentActionState = ActionState.Stable;
+                return false;
+            }
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
         public bool TryAcquireCup(DrinkContainer cup)
         {
             var record = GetComponent<CurrentDrinkRecord>();
-            if (!CanUseHeldInput || !shaker || !shaker.isActiveAndEnabled || shaker.State != ShakerState.ShakeComplete ||
-                !servePosition || !record || !record.isActiveAndEnabled || !cup || !cup.isActiveAndEnabled ||
+            if (!CanUseHeldInput ||
+                !servePosition || !record || !record.isActiveAndEnabled || record.PourCompleted || !cup || !cup.isActiveAndEnabled ||
                 cup.containerType != DrinkContainer.ContainerType.FinalGlass || !cupRestPoses.ContainsKey(cup) ||
                 record.SelectedGlass == cup || (record.SelectedGlass && record.SelectedGlass.CurrentVolume > 0f)) return false;
             ReturnServeCup();
@@ -164,12 +252,13 @@ namespace CupPrototype.Interaction
         {
             var record = GetComponent<CurrentDrinkRecord>();
             var cup = record ? record.SelectedGlass : null;
+            if (cup && PrimaryHeld == cup.gameObject) PrimaryHeld = null;
+            if (record && cup) record.SelectGlass(null);
             if (cup && cupRestPoses.TryGetValue(cup, out var rest))
             {
                 cup.transform.SetPositionAndRotation(rest.position, rest.rotation);
                 if (Selected == cup.gameObject) Selected = null;
             }
-            if (record && cup) record.SelectGlass(null);
         }
 
         public bool TryTaste(Collider clicked)
@@ -186,7 +275,7 @@ namespace CupPrototype.Interaction
             {
                 if (success && record && ReferenceEquals(record.ActiveOrder, order) &&
                     shaker && shaker.State == ShakerState.Preparing && container && !container.IsEmpty())
-                    record.RecordTaste(TasteFeedbackSystem.GenerateFeedback(container.GetCurrentFlavorProfile(), order.ExpectedFlavor, order.Recipe.flavorTolerance));
+                    record.RecordTaste(TasteFeedbackSystem.GenerateFeedback(container, order.Recipe));
                 CurrentActionState = ActionState.Stable;
                 consumedFrame = Time.frameCount;
             }))
@@ -197,7 +286,7 @@ namespace CupPrototype.Interaction
             consumedFrame = Time.frameCount;
             return true;
         }
-        public bool CanOpenShaker => CanUseHeldInput && shaker && shaker.CanOpen;
+        public bool CanOpenShaker => CanUseHeldInput && shaker && PrimaryHeld != shaker.gameObject && shaker.CanOpen;
 
         public bool TryOpenShaker()
         {
@@ -217,6 +306,7 @@ namespace CupPrototype.Interaction
             if (!CanUseHeldInput || PrimaryHeld || SecondaryHeld || !shaker || !shaker.isActiveAndEnabled ||
                 shaker.State != ShakerState.ReadyToShake || !tool || !tool.isActiveAndEnabled ||
                 tool.gameObject != shaker.gameObject || !tool.enableFlair || !tool.visualRoot) return false;
+            if (!CheckShakeIngredients()) return false;
             shakeGestureTool = tool;
             Selected = shaker.gameObject;
             CurrentActionState = ActionState.Flair;
@@ -230,16 +320,25 @@ namespace CupPrototype.Interaction
             CancelShakeGesture();
             if (!CanUseHeldInput || !tool || !shaker || shaker.State != ShakerState.ReadyToShake ||
                 !tool.TryGetAction(match, out var action)) return false;
+            if (!CheckShakeIngredients()) return false;
             CurrentActionState = ActionState.Shake;
             PrimaryHeld = shaker.gameObject;
-            if (shaker.TryShake(tool, action, _ =>
+            if (shaker.TryShake(tool, action, succeeded =>
             {
-                PrimaryHeld = SecondaryHeld = null;
+                PrimaryHeld = succeeded ? shaker.gameObject : null;
+                SecondaryHeld = null;
                 CurrentActionState = ActionState.Stable;
                 consumedFrame = Time.frameCount;
             })) return true;
             PrimaryHeld = null;
             CurrentActionState = ActionState.Stable;
+            return false;
+        }
+
+        private bool CheckShakeIngredients()
+        {
+            if (shaker.HasShakeIngredients) return true;
+            DemoMessagePanel.Instance?.ShowMessage("Not enough ingredients to shake.");
             return false;
         }
 
@@ -269,6 +368,16 @@ namespace CupPrototype.Interaction
             if (!CanUseHeldInput || !iceWell || !target || !target.enabled ||
                 !target.gameObject.activeInHierarchy || !target.transform.IsChildOf(iceWell) ||
                 !shaker || !shaker.TryAddProcessIce()) return false;
+            consumedFrame = Time.frameCount;
+            return true;
+        }
+
+        public bool TryAddServeIce(Collider target)
+        {
+            if (!CanUseHeldInput || !serveIceWell || !target || !target.enabled ||
+                !target.gameObject.activeInHierarchy || !target.transform.IsChildOf(serveIceWell)) return false;
+            var record = GetComponent<CurrentDrinkRecord>();
+            if (!record || !record.TryRecordServeIce()) return false;
             consumedFrame = Time.frameCount;
             return true;
         }
@@ -381,6 +490,7 @@ namespace CupPrototype.Interaction
 
         private void OnDisable()
         {
+            if (shaker) shaker.CancelPour();
             if (stirStick) stirStick.Cancel();
             if (shaker) shaker.CancelOpen();
             GetComponent<FlairGestureController>()?.CancelRecording();
@@ -418,6 +528,20 @@ namespace CupPrototype.Interaction
 
         public bool TryReturnHeld()
         {
+            if (CanUseHeldInput && PrimaryHeld && PrimaryHeld.TryGetComponent<DrinkContainer>(out var cup) && cupRestPoses.ContainsKey(cup))
+            {
+                PlaceCup(cup, servePosition);
+                PrimaryHeld = Selected = null;
+                consumedFrame = Time.frameCount;
+                return true;
+            }
+            if (CanUseHeldInput && shaker && PrimaryHeld == shaker.gameObject)
+            {
+                shaker.ReturnServeHold();
+                PrimaryHeld = Selected = null;
+                consumedFrame = Time.frameCount;
+                return true;
+            }
             if (TryReturnBottle()) return true;
             if (!CanUseHeldInput || !jigger || PrimaryHeld != jigger.gameObject) return false;
             jigger.transform.SetPositionAndRotation(jiggerRestPose.position, jiggerRestPose.rotation);
@@ -442,6 +566,7 @@ namespace CupPrototype.Interaction
 
         public void SetActionState(ActionState state)
         {
+            if (CurrentActionState == ActionState.AutoPour && shaker) shaker.CancelPour();
             if (CurrentActionState == ActionState.Tasting && stirStick) stirStick.Cancel();
             if (CurrentActionState == ActionState.Opening && shaker) shaker.CancelOpen();
             if (shakeGestureTool) GetComponent<FlairGestureController>()?.CancelRecording();
@@ -454,6 +579,9 @@ namespace CupPrototype.Interaction
 
         public void ResetPreparation()
         {
+            DemoMessagePanel.Instance?.ClearMessage();
+            if (shaker) shaker.CancelPour();
+            if (shaker && PrimaryHeld == shaker.gameObject) PrimaryHeld = Selected = null;
             ReturnServeCup();
             if (stirStick) stirStick.Cancel();
             GetComponent<FlairGestureController>()?.CancelRecording();
@@ -463,6 +591,7 @@ namespace CupPrototype.Interaction
 
         public void ClearState()
         {
+            if (shaker) shaker.CancelPour();
             ReturnServeCup();
             if (stirStick) stirStick.Cancel();
             if (shaker) shaker.CancelOpen();

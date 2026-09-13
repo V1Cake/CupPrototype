@@ -102,8 +102,13 @@
 - R and order switch reset both version values and Tasted / feedback.
 - Manual acceptance: Taste twice (second rejected); add liquid or first Ice then Taste (allowed); empty Transfer / repeated Ice / Open-Close then Taste (still rejected).- Correction verification: Unity compilation, updated T12 version assertions, T10 and T11 direct dependency checks PASS. No runtime Error / Exception; Manual Check remains Pending.
 
-## Confirmed Correction — First Shake Before Taste
+## Historical Rule — First Shake Before Taste (superseded by T14)
 - Taste additionally requires at least one successful Shake in this attempt (`HasShaken`). Close alone does not qualify; the Shaker still needs to be Open / Preparing for Taste.
 - Content changes clear current `ShakePerformed`, but preserve `HasShaken`; version-gated Taste remains available after modifications.
 - R / order switch clear `HasShaken`, requiring a first successful Shake again.
 - Verification: updated T12 Play Mode check PASS, including rejection before first Shake, Close-only rejection, successful Shake + Open, post-change version Taste and R/order history reset. No runtime Error / Exception during the completed check. Manual validation pending.
+
+## Current Rule — T14 Revision
+- Taste requires Preparing / Open, actual liquid, Stable and an untasted preparation version. No prior Shake is required.
+- Required recipe ingredients are checked first; a completely missing required ingredient produces a missing-content hint. Once all required ingredients are present, use the existing qualitative Flavor comparison.
+- Taste preserves ProcessIce and ServeIce, as well as actual liquid and Shake facts. Same-version repeat rejection and content-change unlocking remain in force.

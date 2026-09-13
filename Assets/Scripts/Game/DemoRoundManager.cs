@@ -41,6 +41,21 @@ namespace CupPrototype.Game
         public DemoRoundState State { get; private set; } = DemoRoundState.Ready;
         // 对外只读的当前评分目标。
         public OrderContext ActiveOrder { get; private set; }
+        public DrinkContainer FinishedDrink { get; private set; }
+        public CurrentDrinkRecord SubmittedRecord { get; private set; }
+        public bool TrySubmitFinishedDrink(OrderContext order, CurrentDrinkRecord record, DrinkContainer cup)
+        {
+            if (!isActiveAndEnabled || !drinkTestManager || !drinkTestManager.isActiveAndEnabled ||
+                !ReferenceEquals(order, ActiveOrder) || order == null || !order.Recipe ||
+                !record || record != currentDrinkRecord || !ReferenceEquals(record.ActiveOrder, order) ||
+                record.Submitted || !record.PourCompleted || !cup || !cup.isActiveAndEnabled ||
+                record.SelectedGlass != cup || cup.CurrentVolume <= 0) return false;
+            FinishedDrink = cup;
+            SubmittedRecord = record;
+            record.RecordSubmission();
+            drinkTestManager.EvaluateFinishedDrink(cup, order.Recipe);
+            return true;
+        }
         public TargetDrinkData CurrentTarget => ActiveOrder?.Recipe ?? currentTarget;
         // 唯一目标列表的只读视图，供 Build 前验证使用，不创建第二份运行时列表。
         public IReadOnlyList<TargetDrinkData> AvailableTargets => availableTargets;
@@ -194,12 +209,16 @@ namespace CupPrototype.Game
 
         private void ActivateOrder(TargetDrinkData recipe)
         {
+            FinishedDrink = null;
+            SubmittedRecord = null;
             ActiveOrder = new OrderContext(recipe);
             if (currentDrinkRecord) currentDrinkRecord.BeginOrder(ActiveOrder);
         }
 
         public void StartRound()
         {
+            FinishedDrink = null;
+            SubmittedRecord = null;
             State = DemoRoundState.Mixing;
             if (orderDisplay != null)
             {

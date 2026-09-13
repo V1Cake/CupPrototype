@@ -29,6 +29,7 @@ public static class InteractionCoordinatorTasteCheck
     static Pose rest;
     static Collider click;
     static IngredientData sour, sweet;
+    static TargetDrinkData recipe;
     static InteractionCoordinatorTasteCheck() { if (SessionState.GetBool(Key, false)) Hook(); }
     public static void SetupAndRun()
     {
@@ -121,7 +122,10 @@ public static class InteractionCoordinatorTasteCheck
         Require(TasteFeedbackSystem.GenerateFeedback(new FlavorProfile { sourness = 9, sweetness = 4 }, new FlavorProfile { sweetness = 5 }, 2) == "Too sour.", "largest valid deviation only");
         Require(TasteFeedbackSystem.GenerateFeedback(new FlavorProfile { sweetness = 1 }, new FlavorProfile { sweetness = 5 }, 2) == "Not sweet enough.", "negative deviation");
         Require(TasteFeedbackSystem.GenerateFeedback(new FlavorProfile { sourness = 2 }, new FlavorProfile(), 2) == "Overall close to expected.", "existing tolerance boundary");
-        var firstShake = FirstShake(); while (firstShake.MoveNext()) yield return firstShake.Current;
+        recipe = UnityEngine.Object.Instantiate(record.ActiveOrder.Recipe);
+        recipe.requiredIngredients = new System.Collections.Generic.List<IngredientData> { sour, sweet };
+        record.BeginOrder(new OrderContext(recipe));
+        Require(!record.HasShaken && !record.ShakePerformed, "Taste fixture has never shaken");
         string previousFeedback = null;
         for (int round = 0; round < 3; round++)
         {
@@ -141,9 +145,10 @@ public static class InteractionCoordinatorTasteCheck
             for (int i = 0; i < tools.Length; i++) Require(Vector3.Distance(tools[i].transform.position, originalPoses[i].position) < .000001f && Quaternion.Angle(tools[i].transform.rotation, originalPoses[i].rotation) < .001f, "all spoon parts return / other tools unchanged");
             Require(dipped && sampled && AtRest(), "dip / sample / exact return");
             Require(record.Tasted && record.ShakePerformed == shaken && record.ProcessIce == ice && before == JsonUtility.ToJson(drink) && s.State == ShakerState.Preparing, "Taste preserves all gameplay content");
-            Require(record.TasteFeedback == TasteFeedbackSystem.GenerateFeedback(drink.GetCurrentFlavorProfile(), record.ActiveOrder.ExpectedFlavor, record.ActiveOrder.Recipe.flavorTolerance), "actual Shaker and current order");
+            Require(record.TasteFeedback == TasteFeedbackSystem.GenerateFeedback(drink, record.ActiveOrder.Recipe), "actual Shaker and current order");
             Require(!string.IsNullOrEmpty(record.TasteFeedback) && !record.TasteFeedback.Any(char.IsDigit), "qualitative only");
             CheckFeedback(true);
+            Require(round < 2 ? record.TasteFeedback == TasteFeedbackSystem.MissingIngredientFeedback : record.TasteFeedback != TasteFeedbackSystem.MissingIngredientFeedback, "missing ingredient has priority until recipe complete");
             int version = record.PreparationVersion;
             Require(record.LastTastedVersion == version && !c.TryTaste(click), "same version rejects repeat Taste");
             if (round == 0)
@@ -179,28 +184,18 @@ public static class InteractionCoordinatorTasteCheck
         {
             Reset(); CheckFeedback(false); Require(!record.Tasted && !record.HasShaken && record.PreparationVersion == 0 && record.LastTastedVersion == -1 && c.TryAcquireShaker(s), "R clears Taste");
             jigger.AddIngredient(sour, 20, false); Require(jigger.TransferTo(drink, 20), "cancellation liquid");
-            firstShake = FirstShake(); while (firstShake.MoveNext()) yield return firstShake.Current;
+
             Require(c.TryTaste(click), "cancellation setup");
             if (cancel == 0) Reset(); else UnityEngine.Object.FindAnyObjectByType<DemoRoundManager>().StartNextTarget();
             float start = Time.time; while (Time.time - start < 2.4f) yield return null;
             Require(!record.Tasted && !record.HasShaken && record.PreparationVersion == 0 && record.LastTastedVersion == -1 && string.IsNullOrEmpty(record.TasteFeedback) && AtRest() && c.CurrentActionState == ActionState.Stable, "R / new order cancels old Taste and feedback"); CheckFeedback(false);
         }
         Require(c.TryAcquireShaker(s), "new order Preparing"); jigger.AddIngredient(sweet, 20, false); Require(jigger.TransferTo(drink, 20), "new order liquid");
-        firstShake = FirstShake(); while (firstShake.MoveNext()) yield return firstShake.Current;
+
         Require(c.TryTaste(click), "Taste new order"); while (c.CurrentActionState == ActionState.Tasting) yield return null;
-        Require(record.TasteFeedback == TasteFeedbackSystem.GenerateFeedback(drink.GetCurrentFlavorProfile(), record.ActiveOrder.ExpectedFlavor, record.ActiveOrder.Recipe.flavorTolerance), "new order expected flavor");
+        Require(record.TasteFeedback == TasteFeedbackSystem.GenerateFeedback(drink, record.ActiveOrder.Recipe), "new order expected flavor");
         UnityEngine.Object.FindAnyObjectByType<DemoRoundManager>().StartNextTarget(); CheckFeedback(false); Require(!record.Tasted, "switch clears completed Taste");
         Debug.Log("T12_AUTOMATED_PASS: existing spoon click/dip/sample/return; Preparing/nonempty/order gates; busy/Closed rejection; current actual flavor and order; qualitative tolerance/max deviation; repeat and post-Taste modifications; Shake preserved unless contents change; R/order cancel and feedback cleanup");
-    }
-    static IEnumerator FirstShake()
-    {
-        Require(!record.HasShaken && !c.TryTaste(click), "nonempty first preparation rejects Taste before Shake");
-        int version = record.PreparationVersion;
-        Require(c.TryCloseShaker(), "first Close"); while (c.CurrentActionState != ActionState.Stable) yield return null;
-        Require(!record.HasShaken && !c.TryTaste(click), "Close alone does not unlock Taste");
-        Shake(); while (c.CurrentActionState != ActionState.Stable) yield return null;
-        Require(record.HasShaken && record.PreparationVersion == version && !c.TryTaste(click), "successful Shake records history but Closed rejects Taste");
-        Require(c.TryOpenShaker(), "Open after first Shake"); while (c.CurrentActionState != ActionState.Stable) yield return null;
     }
     static bool AtRest() => Vector3.Distance(stick.transform.position, rest.position) < .000001f && Quaternion.Angle(stick.transform.rotation, rest.rotation) < .001f;
     static void CheckFeedback(bool visible)
@@ -215,6 +210,7 @@ public static class InteractionCoordinatorTasteCheck
     static void Finish(int code)
     {
         Application.logMessageReceived -= Log; EditorApplication.update -= Tick; SessionState.SetBool(Key, false); SessionState.SetString("T12.TasteCheck", code == 0 ? "PASS" : "FAIL");
+        if (recipe) UnityEngine.Object.DestroyImmediate(recipe);
         if (sour) UnityEngine.Object.DestroyImmediate(sour); if (sweet) UnityEngine.Object.DestroyImmediate(sweet);
         if (Application.isBatchMode) EditorApplication.Exit(code); else EditorApplication.isPlaying = false;
     }
